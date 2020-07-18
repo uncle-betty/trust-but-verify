@@ -1,19 +1,16 @@
 module Test where
 
-open import CVC4 using (Var ; var ; Lit ; pos ; neg ; Oper ; join ; skip ; Clause ; Clause⁺ ; compl ; simpl ; lit-<-STO ; lit-comp)
+open import CVC4 using (Var ; var ; Lit ; pos ; neg ; Oper ; join ; skip ; Clause ; Clause⁺ ; compl ; simpl ; lit-<-STO)
 
-open import Data.Nat using (ℕ ; _+_)
-open import Data.Bool using (if_then_else_)
 open import Data.Empty using (⊥)
 open import Data.List using (List ; [] ; _∷_ ; _++_)
 open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
-open import Data.Tree.AVL.Sets lit-<-STO using (⟨Set⟩ ; empty ; _∈?_ ; insert)
-open import Data.Tree.AVL.Indexed using (node ; leaf ; lookup)
+open import Data.Tree.AVL.Sets lit-<-STO using (⟨Set⟩ ; empty)
 open import Function using (id ; _$_)
 open import Relation.Binary.PropositionalEquality using (_≡_ ; subst)
 open import Relation.Nullary using (¬_)
 
-postulate 
+postulate
   holds : Clause → Set
   holds-[] : holds [] ≡ ⊥
   holds⁺ : Clause⁺ → ⟨Set⟩ → Set

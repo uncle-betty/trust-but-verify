@@ -4,6 +4,7 @@ open import Agda.Primitive using (Level ; lzero ; lsuc)
 open import Data.Bool using (Bool ; true ; false ; _∧_ ; _∨_ ; not ; T ; if_then_else_)
 open import Data.Empty using (⊥)
 open import Data.List using (List ; [] ; _∷_ ; _++_ ; map ; filter)
+open import Data.Maybe using (Maybe ; just ; nothing)
 open import Data.Nat using (ℕ ; _≟_ ; _<_)
 open import Data.Nat.Properties using (<-trans) renaming (<-strictTotalOrder to <-STO)
 open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂)
@@ -11,7 +12,6 @@ open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Unit using (⊤ ; tt)
 open import Function using (_∘_ ; id ; _∋_)
 open import Relation.Binary using (Transitive ; Trichotomous ; tri< ; tri≈ ; tri>) renaming (StrictTotalOrder to STO; IsStrictTotalOrder to ISTO)
--- open import Relation.Binary.PropositionalEquality using (_≡_ ; _≢_ ; refl ; sym ; ≢-sym ; cong ; cong₂ ; subst ; trans ; inspect ; [_] ; isEquivalence)
 open import Relation.Binary.PropositionalEquality using (_≡_ ; _≢_ ; refl ; sym ; ≢-sym ; cong ; cong₂ ; subst ; trans ; inspect ; [_])
 open import Relation.Binary.PropositionalEquality.Properties using (isEquivalence)
 open import Relation.Nullary using (Dec ; yes ; no ; _because_ ; does ; proof ; ofʸ ; ofⁿ ; ¬_)
@@ -40,6 +40,38 @@ data Oper where
 
 CNF = List Clause
 
+ℕ-comp = ISTO.compare (STO.isStrictTotalOrder <-STO)
+
+data Var-< : Var → Var → Set where
+  v<v : ∀ {m n} → m < n → Var-< (var m) (var n)
+
+var-<-trans : Transitive Var-<
+var-<-trans {var m} {var n} {var o} (v<v m<n) (v<v n<o) = v<v (<-trans m<n n<o)
+
+var-≡ : ∀ {m n} → var m ≡ var n → m ≡ n
+var-≡ refl = refl
+
+var-< : ∀ {m n} → Var-< (var m) (var n) → m < n
+var-< (v<v p) = p
+
+var-comp : Trichotomous _≡_ Var-<
+var-comp (var m) (var n) with ℕ-comp m n
+... | tri< p₁ p₂ p₃ = tri< (v<v p₁)     (p₂ ∘ var-≡)  (p₃ ∘ var-<)
+... | tri≈ p₁ p₂ p₃ = tri≈ (p₁ ∘ var-<) (cong var p₂) (p₃ ∘ var-<)
+... | tri> p₁ p₂ p₃ = tri> (p₁ ∘ var-<) (p₂ ∘ var-≡)  (v<v p₃)
+
+var-<-ISTO : ISTO _≡_ Var-<
+var-<-ISTO = record { isEquivalence = isEquivalence ; trans = var-<-trans ; compare = var-comp }
+
+var-<-STO : STO lzero lzero  lzero
+var-<-STO = record { Carrier = Var ; _≈_ = _≡_ ; _<_ = Var-< ; isStrictTotalOrder = var-<-ISTO }
+
+import Data.Tree.AVL.Map var-<-STO as M using (Map ; empty ; insert ; lookup)
+
+postulate
+  map-insed : ∀ v    (b : Bool) m →          (M.lookup v  (M.insert v b m)) ≡ just b
+  map-other : ∀ v′ v (b : Bool) m → v′ ≢ v → (M.lookup v′ (M.insert v b m)) ≡ M.lookup v′ m
+
 data Lit-< : Lit → Lit → Set where
   n<p : ∀ {x y} → Lit-< (neg x) (pos y)
   n<n : ∀ {m n} → m < n → Lit-< (neg (var m)) (neg (var n))
@@ -49,8 +81,6 @@ lit-<-trans : Transitive Lit-<
 lit-<-trans {pos (var i)} {pos (var j)} {pos (var k)} (p<p i<j) (p<p j<k) = p<p (<-trans i<j j<k)
 lit-<-trans {neg i}       {_}           {pos k}       _         _         = n<p
 lit-<-trans {neg (var i)} {neg (var j)} {neg (var k)} (n<n i<j) (n<n j<k) = n<n (<-trans i<j j<k)
-
-ℕ-comp = ISTO.compare (STO.isStrictTotalOrder <-STO)
 
 pos-≡ : ∀ {m n} → pos (var m) ≡ pos (var n) → m ≡ n
 pos-≡ refl = refl
@@ -92,10 +122,9 @@ dec-≡ˡ l₁ l₂ with lit-comp l₁ l₂
 ... | tri> _ p _ = false because ofⁿ p
 
 open import Data.Tree.AVL.Sets lit-<-STO using (⟨Set⟩ ; empty ; insert ; _∈?_)
--- open import Data.AVL.Sets lit-<-STO using (⟨Set⟩ ; empty ; insert ; _∈?_)
 
 postulate
-  oracle : Var → Bool
+  envir : M.Map Bool
 
   set-insed : ∀ l    s →          (l  ∈? (insert l s)) ≡ true
   set-other : ∀ l′ l s → l′ ≢ l → (l′ ∈? (insert l s)) ≡ (l′ ∈? s)
@@ -137,8 +166,13 @@ set-add-com l₁ l₂ s l′ with dec-≡ˡ l₁ l₂
         | set-other l′ l₁ s p₂
         = refl
 
+evalᵛ : Var → Bool
+evalᵛ v with M.lookup v envir
+... | just b  = b
+... | nothing = false
+
 holdsᵛ : Var → Set
-holdsᵛ = T ∘ oracle
+holdsᵛ = T ∘ evalᵛ
 
 holdsˡ : Lit → Set
 holdsˡ (pos v′) = holdsᵛ v′
@@ -183,11 +217,11 @@ flipˡ-¬ : ∀ {l} → holdsˡ l → ¬ (holdsˡ (flipˡ l))
 flipˡ-¬ {pos v′} p f = f p
 flipˡ-¬ {neg v′} p = p
 
-oracle-t : ∀ {v} → oracle v ≡ true → holdsˡ (pos v)
-oracle-t p rewrite p = tt
+evalᵛ-t : ∀ {v} → evalᵛ v ≡ true → holdsˡ (pos v)
+evalᵛ-t p rewrite p = tt
 
-oracle-f : ∀ {v} → oracle v ≡ false → holdsˡ (neg v)
-oracle-f p rewrite p = id
+evalᵛ-f : ∀ {v} → evalᵛ v ≡ false → holdsˡ (neg v)
+evalᵛ-f p rewrite p = id
 
 ⊥-⊎ : ∀ {ℓ} {A B : Set ℓ} → ¬ A → A ⊎ B → B
 ⊥-⊎ p₁ (inj₁ p′) = contradiction p′ p₁
@@ -227,16 +261,16 @@ resolve⁺ l s (inj₂ (skip l′) ∷ xs) h₁ h₂
 resolve⁺-r : ∀ {c₁ c₂} → holds⁺ c₁ empty → holds⁺ c₂ empty → (v : Var) →
   holds⁺ (inj₂ (join (inj₂ (skip (pos v)) ∷ c₁)) ∷ inj₂ (skip (neg v)) ∷ c₂) empty
 
-resolve⁺-r {c₁} {c₂} h₁ h₂ v with oracle v | inspect oracle v
-... | true  | [ eq ] = inj₂ (resolve⁺ (pos v) empty c₂ (oracle-t eq) h₂)
-... | false | [ eq ] = inj₁ (resolve⁺ (neg v) empty c₁ (oracle-f eq) h₁)
+resolve⁺-r {c₁} {c₂} h₁ h₂ v with evalᵛ v | inspect evalᵛ v
+... | true  | [ eq ] = inj₂ (resolve⁺ (pos v) empty c₂ (evalᵛ-t eq) h₂)
+... | false | [ eq ] = inj₁ (resolve⁺ (neg v) empty c₁ (evalᵛ-f eq) h₁)
 
 resolve⁺-q : ∀ {c₁ c₂} → holds⁺ c₁ empty → holds⁺ c₂ empty → (v : Var) →
   holds⁺ (inj₂ (join (inj₂ (skip (neg v)) ∷ c₁)) ∷ inj₂ (skip (pos v)) ∷ c₂) empty
 
-resolve⁺-q {c₁} {c₂} h₁ h₂ v with oracle v | inspect oracle v
-... | true  | [ eq ] = inj₁ (resolve⁺ (pos v) empty c₁ (oracle-t eq) h₁)
-... | false | [ eq ] = inj₂ (resolve⁺ (neg v) empty c₂ (oracle-f eq) h₂)
+resolve⁺-q {c₁} {c₂} h₁ h₂ v with evalᵛ v | inspect evalᵛ v
+... | true  | [ eq ] = inj₁ (resolve⁺ (pos v) empty c₁ (evalᵛ-t eq) h₁)
+... | false | [ eq ] = inj₂ (resolve⁺ (neg v) empty c₂ (evalᵛ-f eq) h₂)
 
 compl : Clause → Clause⁺
 compl = map inj₁
@@ -312,12 +346,12 @@ dedup-flipˡ l s (l′ ∷ ls) h₁ h₂ | no p rewrite set-other l′ (flipˡ l
 dedup-holds : ∀ c → holds c → holds (dedup c empty)
 dedup-holds (l ∷ ls) (inj₁ h) = inj₁ h
 
-dedup-holds (pos v ∷ ls) (inj₂ h) with oracle v | inspect oracle v
+dedup-holds (pos v ∷ ls) (inj₂ h) with evalᵛ v | inspect evalᵛ v
 ... | true  | _      = inj₁ tt
-... | false | [ eq ] = inj₂ (dedup-flipˡ (neg v) empty ls (oracle-f eq) (dedup-holds ls h))
+... | false | [ eq ] = inj₂ (dedup-flipˡ (neg v) empty ls (evalᵛ-f eq) (dedup-holds ls h))
 
-dedup-holds (neg v ∷ ls) (inj₂ h) with oracle v | inspect oracle v
-... | true  | [ eq ] = inj₂ (dedup-flipˡ (pos v) empty ls (oracle-t eq) (dedup-holds ls h))
+dedup-holds (neg v ∷ ls) (inj₂ h) with evalᵛ v | inspect evalᵛ v
+... | true  | [ eq ] = inj₂ (dedup-flipˡ (pos v) empty ls (evalᵛ-t eq) (dedup-holds ls h))
 ... | false | _      = inj₁ id
 
 --- SMT ---
@@ -342,87 +376,87 @@ holdsᶠ (notᶠ f) = ¬ holdsᶠ f
 holdsᶠ (andᶠ f₁ f₂) = holdsᶠ f₁ × holdsᶠ f₂
 holdsᶠ (orᶠ f₁ f₂) = holdsᶠ f₁ ⊎ holdsᶠ f₂
 
-eval : Formula → Bool
-eval trueᶠ = true
-eval falseᶠ = false
+evalᶠ : Formula → Bool
+evalᶠ trueᶠ = true
+evalᶠ falseᶠ = false
 
-eval (notᶠ f) = not (eval f)
-eval (andᶠ f₁ f₂) = eval f₁ ∧ eval f₂
-eval (orᶠ f₁ f₂) = eval f₁ ∨ eval f₂
+evalᶠ (notᶠ f) = not (evalᶠ f)
+evalᶠ (andᶠ f₁ f₂) = evalᶠ f₁ ∧ evalᶠ f₂
+evalᶠ (orᶠ f₁ f₂) = evalᶠ f₁ ∨ evalᶠ f₂
 
-eval-t : ∀ {f} → eval f ≡ true → holdsᶠ f
-eval-f : ∀ {f} → eval f ≡ false → ¬ holdsᶠ f
+evalᶠ-t : ∀ {f} → evalᶠ f ≡ true → holdsᶠ f
+evalᶠ-f : ∀ {f} → evalᶠ f ≡ false → ¬ holdsᶠ f
 
-eval-t {trueᶠ} p = tt
+evalᶠ-t {trueᶠ} p = tt
 
-eval-t {notᶠ f} p with eval f | inspect eval f
-eval-t {notᶠ f} () | true  | _
-eval-t {notᶠ f} _  | false | [ eq ] = eval-f eq
+evalᶠ-t {notᶠ f} p with evalᶠ f | inspect evalᶠ f
+evalᶠ-t {notᶠ f} () | true  | _
+evalᶠ-t {notᶠ f} _  | false | [ eq ] = evalᶠ-f eq
 
-eval-t {andᶠ f₁ f₂} p  with eval f₁ | inspect eval f₁ | eval f₂ | inspect eval f₂
-eval-t {andᶠ f₁ f₂} _  | true  | [ eq₁ ] | true  | [ eq₂ ] = eval-t eq₁ , eval-t eq₂
-eval-t {andᶠ f₁ f₂} () | true  | _       | false | _
-eval-t {andᶠ f₁ f₂} () | false | _       | true  | _
-eval-t {andᶠ f₁ f₂} () | false | _       | false | _
+evalᶠ-t {andᶠ f₁ f₂} p  with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+evalᶠ-t {andᶠ f₁ f₂} _  | true  | [ eq₁ ] | true  | [ eq₂ ] = evalᶠ-t eq₁ , evalᶠ-t eq₂
+evalᶠ-t {andᶠ f₁ f₂} () | true  | _       | false | _
+evalᶠ-t {andᶠ f₁ f₂} () | false | _       | true  | _
+evalᶠ-t {andᶠ f₁ f₂} () | false | _       | false | _
 
-eval-t {orᶠ f₁ f₂} p  with eval f₁ | inspect eval f₁ | eval f₂ | inspect eval f₂
-eval-t {orᶠ f₁ f₂} _  | true  | [ eq₁ ] | _     | _       = inj₁ (eval-t eq₁)
-eval-t {orᶠ f₁ f₂} _  | false | _       | true  | [ eq₂ ] = inj₂ (eval-t eq₂)
-eval-t {orᶠ f₁ f₂} () | false | _       | false | _
+evalᶠ-t {orᶠ f₁ f₂} p  with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+evalᶠ-t {orᶠ f₁ f₂} _  | true  | [ eq₁ ] | _     | _       = inj₁ (evalᶠ-t eq₁)
+evalᶠ-t {orᶠ f₁ f₂} _  | false | _       | true  | [ eq₂ ] = inj₂ (evalᶠ-t eq₂)
+evalᶠ-t {orᶠ f₁ f₂} () | false | _       | false | _
 
-eval-f {falseᶠ} p = id
+evalᶠ-f {falseᶠ} p = id
 
-eval-f {notᶠ f} p with eval f | inspect eval f
-eval-f {notᶠ f} _  | true  | [ eq ] = λ x → x (eval-t eq)
-eval-f {notᶠ f} () | false | _
+evalᶠ-f {notᶠ f} p with evalᶠ f | inspect evalᶠ f
+evalᶠ-f {notᶠ f} _  | true  | [ eq ] = λ x → x (evalᶠ-t eq)
+evalᶠ-f {notᶠ f} () | false | _
 
-eval-f {andᶠ f₁ f₂} p  with eval f₁ | inspect eval f₁ | eval f₂ | inspect eval f₂
-eval-f {andᶠ f₁ f₂} () | true  | [ eq₁ ] | true  | [ eq₂ ]
+evalᶠ-f {andᶠ f₁ f₂} p  with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+evalᶠ-f {andᶠ f₁ f₂} () | true  | [ eq₁ ] | true  | [ eq₂ ]
 
-eval-f {andᶠ f₁ f₂} _  | true  | [ eq₁ ] | false | [ eq₂ ] =
-  λ { (_ , p₂) → contradiction p₂ (eval-f eq₂) }
+evalᶠ-f {andᶠ f₁ f₂} _  | true  | [ eq₁ ] | false | [ eq₂ ] =
+  λ { (_ , p₂) → contradiction p₂ (evalᶠ-f eq₂) }
 
-eval-f {andᶠ f₁ f₂} _  | false | [ eq₁ ] | true  | [ eq₂ ] =
-  λ { (p₁ , _) → contradiction p₁ (eval-f eq₁) }
+evalᶠ-f {andᶠ f₁ f₂} _  | false | [ eq₁ ] | true  | [ eq₂ ] =
+  λ { (p₁ , _) → contradiction p₁ (evalᶠ-f eq₁) }
 
-eval-f {andᶠ f₁ f₂} _  | false | [ eq₁ ] | false | [ eq₂ ] =
-  λ { (p₁ , _) → contradiction p₁ (eval-f eq₁) }
+evalᶠ-f {andᶠ f₁ f₂} _  | false | [ eq₁ ] | false | [ eq₂ ] =
+  λ { (p₁ , _) → contradiction p₁ (evalᶠ-f eq₁) }
 
-eval-f {orᶠ f₁ f₂} p  with eval f₁ | inspect eval f₁ | eval f₂ | inspect eval f₂
-eval-f {orᶠ f₁ f₂} () | true  | _       | _     | _
-eval-f {orᶠ f₁ f₂} () | false | _       | true  | _
+evalᶠ-f {orᶠ f₁ f₂} p  with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+evalᶠ-f {orᶠ f₁ f₂} () | true  | _       | _     | _
+evalᶠ-f {orᶠ f₁ f₂} () | false | _       | true  | _
 
-eval-f {orᶠ f₁ f₂} _  | false | [ eq₁ ] | false | [ eq₂ ] =
+evalᶠ-f {orᶠ f₁ f₂} _  | false | [ eq₁ ] | false | [ eq₂ ] =
   λ {
-    (inj₁ p₁) → contradiction p₁ (eval-f eq₁) ;
-    (inj₂ p₂) → contradiction p₂ (eval-f eq₂)
+    (inj₁ p₁) → contradiction p₁ (evalᶠ-f eq₁) ;
+    (inj₂ p₂) → contradiction p₂ (evalᶠ-f eq₂)
   }
 
 atom : Var → Formula → Set
-atom v f = oracle v ≡ eval f
+atom v f = evalᵛ v ≡ evalᶠ f
 
-decl-atom : ∀ {f} → (∀ {v} → atom v f → holds []) → holds []
-decl-atom fn = {!!}
+decl-atom : ∀ {v f} → atom v f → (∀ {v} → atom v f → holds []) → holds []
+decl-atom a fn = fn a
 
 claus-t : ∀ {v f} → atom v f → holdsᶠ f → holds (pos v ∷ [])
-claus-t {v} {f} a h with eval f | inspect eval f
+claus-t {v} {f} a h with evalᶠ f | inspect evalᶠ f
 ... | true  | _      rewrite a = inj₁ tt
-... | false | [ eq ] = contradiction h (eval-f eq)
+... | false | [ eq ] = contradiction h (evalᶠ-f eq)
 
 claus-f : ∀ {v f} → atom v f → holdsᶠ (notᶠ f) → holds (neg v ∷ [])
-claus-f {v} {f} a h with eval f | inspect eval f
-... | true  | [ eq ] = contradiction (eval-t eq) h
+claus-f {v} {f} a h with evalᶠ f | inspect evalᶠ f
+... | true  | [ eq ] = contradiction (evalᶠ-t eq) h
 ... | false | [ eq ] rewrite a = inj₁ id
 
 assum-t : ∀ {v f c} → atom v f → (holdsᶠ f → holds c) → holds (neg v ∷ c)
-assum-t {v} {f} {c} a fn with eval f | inspect eval f
-... | true  | [ eq ] = inj₂ (fn (eval-t eq))
+assum-t {v} {f} {c} a fn with evalᶠ f | inspect evalᶠ f
+... | true  | [ eq ] = inj₂ (fn (evalᶠ-t eq))
 ... | false | _      rewrite a = inj₁ id
 
 assum-f : ∀ {v f c} → atom v f → (holdsᶠ (notᶠ f) → holds c) → holds (pos v ∷ c)
-assum-f {v} {f} {c} a fn with eval f | inspect eval f
+assum-f {v} {f} {c} a fn with evalᶠ f | inspect evalᶠ f
 ... | true  | _      rewrite a = inj₁ tt
-... | false | [ eq ] = inj₂ (fn (eval-f eq))
+... | false | [ eq ] = inj₂ (fn (evalᶠ-f eq))
 
 {-
 --- SMT ---
