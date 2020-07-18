@@ -6,6 +6,7 @@ open import Data.Empty using (⊥)
 open import Data.List using (List ; [] ; _∷_ ; _++_ ; map ; filter)
 open import Data.Nat using (ℕ ; _≟_ ; _<_)
 open import Data.Nat.Properties using (<-trans) renaming (<-strictTotalOrder to <-STO)
+open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂)
 open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Unit using (⊤ ; tt)
 open import Function using (_∘_ ; id ; _∋_)
@@ -19,6 +20,7 @@ open import Relation.Nullary.Negation using (contradiction ; contraposition ; ¬
 --- Forward declarations ---
 
 data Oper : Set
+data Formula : Set
 
 --- SAT ---
 
@@ -45,7 +47,7 @@ data Lit-< : Lit → Lit → Set where
 
 lit-<-trans : Transitive Lit-<
 lit-<-trans {pos (var i)} {pos (var j)} {pos (var k)} (p<p i<j) (p<p j<k) = p<p (<-trans i<j j<k)
-lit-<-trans {neg i}       {_}           {pos k}       _         _         = n<p 
+lit-<-trans {neg i}       {_}           {pos k}       _         _         = n<p
 lit-<-trans {neg (var i)} {neg (var j)} {neg (var k)} (n<n i<j) (n<n j<k) = n<n (<-trans i<j j<k)
 
 ℕ-comp = ISTO.compare (STO.isStrictTotalOrder <-STO)
@@ -257,7 +259,7 @@ holds-++ˡ : ∀ {c₁ c₂} → holds c₂ → holds (c₁ ++ c₂)
 holds-++ˡ {[]}     h = h
 holds-++ˡ {x ∷ xs} h = inj₂ (holds-++ˡ h)
 
-simpl-holds : ∀ c s → holds⁺ c s → holds (simpl c s) 
+simpl-holds : ∀ c s → holds⁺ c s → holds (simpl c s)
 
 simpl-holds (inj₁ l′ ∷ xs) s h with l′ ∈? s
 ... | true  = simpl-holds xs s h
@@ -265,7 +267,7 @@ simpl-holds (inj₁ l′ ∷ xs) s h with l′ ∈? s
 ... | inj₁ h′ = inj₁ h′
 ... | inj₂ h′ = inj₂ (simpl-holds xs s h′)
 
-simpl-holds (inj₂ (join c′) ∷ xs) s (inj₁ h′) = holds-++ʳ (simpl-holds c′ s h′)  
+simpl-holds (inj₂ (join c′) ∷ xs) s (inj₁ h′) = holds-++ʳ (simpl-holds c′ s h′)
 simpl-holds (inj₂ (join c′) ∷ xs) s (inj₂ h′) = holds-++ˡ (simpl-holds xs s h′)
 simpl-holds (inj₂ (skip l′) ∷ xs) s h         = simpl-holds xs (insert l′ s) h
 
@@ -320,19 +322,107 @@ dedup-holds (neg v ∷ ls) (inj₂ h) with oracle v | inspect oracle v
 
 --- SMT ---
 
-data Formula : Set where
+formula-op₁ = Formula → Formula
+formula-op₂ = Formula → Formula → Formula
+formula-op₃ = Formula → Formula → Formula → Formula
+
+data Formula where
   trueᶠ  : Formula
   falseᶠ : Formula
+
+  notᶠ   : formula-op₁
+  andᶠ   : formula-op₂
+  orᶠ    : formula-op₂
 
 holdsᶠ : Formula → Set
 holdsᶠ trueᶠ  = ⊤
 holdsᶠ falseᶠ = ⊥
 
-clausify : ∀ {f v} → holdsᶠ f → (holdsᶠ f → holdsᵛ v) → holds (pos v ∷ [])
-clausify h₁ h₁⇒h₂ = inj₁ (h₁⇒h₂ h₁)
+holdsᶠ (notᶠ f) = ¬ holdsᶠ f
+holdsᶠ (andᶠ f₁ f₂) = holdsᶠ f₁ × holdsᶠ f₂
+holdsᶠ (orᶠ f₁ f₂) = holdsᶠ f₁ ⊎ holdsᶠ f₂
 
--- foo = clausify {trueᶠ} {var 1} tt {!!}
+eval : Formula → Bool
+eval trueᶠ = true
+eval falseᶠ = false
 
+eval (notᶠ f) = not (eval f)
+eval (andᶠ f₁ f₂) = eval f₁ ∧ eval f₂
+eval (orᶠ f₁ f₂) = eval f₁ ∨ eval f₂
+
+eval-t : ∀ {f} → eval f ≡ true → holdsᶠ f
+eval-f : ∀ {f} → eval f ≡ false → ¬ holdsᶠ f
+
+eval-t {trueᶠ} p = tt
+
+eval-t {notᶠ f} p with eval f | inspect eval f
+eval-t {notᶠ f} () | true  | _
+eval-t {notᶠ f} _  | false | [ eq ] = eval-f eq
+
+eval-t {andᶠ f₁ f₂} p  with eval f₁ | inspect eval f₁ | eval f₂ | inspect eval f₂
+eval-t {andᶠ f₁ f₂} _  | true  | [ eq₁ ] | true  | [ eq₂ ] = eval-t eq₁ , eval-t eq₂
+eval-t {andᶠ f₁ f₂} () | true  | _       | false | _
+eval-t {andᶠ f₁ f₂} () | false | _       | true  | _
+eval-t {andᶠ f₁ f₂} () | false | _       | false | _
+
+eval-t {orᶠ f₁ f₂} p  with eval f₁ | inspect eval f₁ | eval f₂ | inspect eval f₂
+eval-t {orᶠ f₁ f₂} _  | true  | [ eq₁ ] | _     | _       = inj₁ (eval-t eq₁)
+eval-t {orᶠ f₁ f₂} _  | false | _       | true  | [ eq₂ ] = inj₂ (eval-t eq₂)
+eval-t {orᶠ f₁ f₂} () | false | _       | false | _
+
+eval-f {falseᶠ} p = id
+
+eval-f {notᶠ f} p with eval f | inspect eval f
+eval-f {notᶠ f} _  | true  | [ eq ] = λ x → x (eval-t eq)
+eval-f {notᶠ f} () | false | _
+
+eval-f {andᶠ f₁ f₂} p  with eval f₁ | inspect eval f₁ | eval f₂ | inspect eval f₂
+eval-f {andᶠ f₁ f₂} () | true  | [ eq₁ ] | true  | [ eq₂ ]
+
+eval-f {andᶠ f₁ f₂} _  | true  | [ eq₁ ] | false | [ eq₂ ] =
+  λ { (_ , p₂) → contradiction p₂ (eval-f eq₂) }
+
+eval-f {andᶠ f₁ f₂} _  | false | [ eq₁ ] | true  | [ eq₂ ] =
+  λ { (p₁ , _) → contradiction p₁ (eval-f eq₁) }
+
+eval-f {andᶠ f₁ f₂} _  | false | [ eq₁ ] | false | [ eq₂ ] =
+  λ { (p₁ , _) → contradiction p₁ (eval-f eq₁) }
+
+eval-f {orᶠ f₁ f₂} p  with eval f₁ | inspect eval f₁ | eval f₂ | inspect eval f₂
+eval-f {orᶠ f₁ f₂} () | true  | _       | _     | _
+eval-f {orᶠ f₁ f₂} () | false | _       | true  | _
+
+eval-f {orᶠ f₁ f₂} _  | false | [ eq₁ ] | false | [ eq₂ ] =
+  λ {
+    (inj₁ p₁) → contradiction p₁ (eval-f eq₁) ;
+    (inj₂ p₂) → contradiction p₂ (eval-f eq₂)
+  }
+
+atom : Var → Formula → Set
+atom v f = oracle v ≡ eval f
+
+decl-atom : ∀ {f} → (∀ {v} → atom v f → holds []) → holds []
+decl-atom fn = {!!}
+
+claus-t : ∀ {v f} → atom v f → holdsᶠ f → holds (pos v ∷ [])
+claus-t {v} {f} a h with eval f | inspect eval f
+... | true  | _      rewrite a = inj₁ tt
+... | false | [ eq ] = contradiction h (eval-f eq)
+
+claus-f : ∀ {v f} → atom v f → holdsᶠ (notᶠ f) → holds (neg v ∷ [])
+claus-f {v} {f} a h with eval f | inspect eval f
+... | true  | [ eq ] = contradiction (eval-t eq) h
+... | false | [ eq ] rewrite a = inj₁ id
+
+assum-t : ∀ {v f c} → atom v f → (holdsᶠ f → holds c) → holds (neg v ∷ c)
+assum-t {v} {f} {c} a fn with eval f | inspect eval f
+... | true  | [ eq ] = inj₂ (fn (eval-t eq))
+... | false | _      rewrite a = inj₁ id
+
+assum-f : ∀ {v f c} → atom v f → (holdsᶠ (notᶠ f) → holds c) → holds (pos v ∷ c)
+assum-f {v} {f} {c} a fn with eval f | inspect eval f
+... | true  | _      rewrite a = inj₁ tt
+... | false | [ eq ] = inj₂ (fn (eval-f eq))
 
 {-
 --- SMT ---
@@ -376,9 +466,9 @@ eval-form trueᶠ            = true
 eval-form falseᶠ           = false
 
 eval-form (notᶠ  f       ) = not (eval-form f )
-eval-form (andᶠ  f₁ f₂   ) =      eval-form f₁  ∧      eval-form f₂ 
+eval-form (andᶠ  f₁ f₂   ) =      eval-form f₁  ∧      eval-form f₂
 eval-form (orᶠ   f₁ f₂   ) =      eval-form f₁                       ∨      eval-form f₂
-eval-form (implᶠ f₁ f₂   ) = not (eval-form f₁)                      ∨      eval-form f₂ 
+eval-form (implᶠ f₁ f₂   ) = not (eval-form f₁)                      ∨      eval-form f₂
 eval-form (iffᶠ  f₁ f₂   ) =      eval-form f₁  ∧      eval-form f₂  ∨ not (eval-form f₁) ∧ not (eval-form f₂)
 eval-form (xorᶠ  f₁ f₂   ) =      eval-form f₁  ∧ not (eval-form f₂) ∨ not (eval-form f₁) ∧      eval-form f₂
 eval-form (ite₁ᶠ f₁ f₂ f₃) =      eval-form f₁  ∧      eval-form f₂  ∨ not (eval-form f₁) ∧      eval-form f₃
