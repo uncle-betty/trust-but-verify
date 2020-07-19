@@ -188,6 +188,9 @@ holds⁺ (inj₁ l′        ∷ xs) s = if l′ ∈? s then holds⁺ xs s else 
 holds⁺ (inj₂ (join c′) ∷ xs) s = holds⁺ c′ s ⊎ holds⁺ xs s
 holds⁺ (inj₂ (skip l′) ∷ xs) s = holds⁺ xs (insert l′ s)
 
+holds-[] : holds [] ≡ ⊥
+holds-[] = refl
+
 holds⁺-≡ : ∀ s₁ s₂ c → set-≡ s₁ s₂ → holds⁺ c s₁ ≡ holds⁺ c s₂
 holds⁺-≡ s₁ s₂ [] p = refl
 
@@ -457,6 +460,37 @@ assum-f : ∀ {v f c} → atom v f → (holdsᶠ (notᶠ f) → holds c) → hol
 assum-f {v} {f} {c} a fn with evalᶠ f | inspect evalᶠ f
 ... | true  | _      rewrite a = inj₁ tt
 ... | false | [ eq ] = inj₂ (fn (evalᶠ-f eq))
+
+-- XXX - Apparently, using implicit arguments in record field types may cause unification
+-- trouble. When populating the "rules" record below, we convert affected functions into
+-- equivalent ones that take explicit arguments. It is up to the user of the record to
+-- convert them back into ones that takes implicit arguments.
+record Rules : Set₁ where
+  field
+    ⟨holds⟩ : Clause → Set
+    ⟨holds-[]⟩ : ⟨holds⟩ [] ≡ ⊥
+    ⟨holds⁺⟩ : Clause⁺ → ⟨Set⟩ → Set
+    ⟨holds-holds⁺⟩ : ∀ c → ⟨holds⟩ c → ⟨holds⁺⟩ (compl c) empty
+
+    ⟨resolve⁺-r⟩ : ∀ c₁ c₂ → ⟨holds⁺⟩ c₁ empty → ⟨holds⁺⟩ c₂ empty → (v : Var) →
+      ⟨holds⁺⟩ (inj₂ (join (inj₂ (skip (pos v)) ∷ c₁)) ∷ inj₂ (skip (neg v)) ∷ c₂) empty
+
+    ⟨resolve⁺-q⟩ : ∀ c₁ c₂ → ⟨holds⁺⟩ c₁ empty → ⟨holds⁺⟩ c₂ empty → (v : Var) →
+      ⟨holds⁺⟩ (inj₂ (join (inj₂ (skip (neg v)) ∷ c₁)) ∷ inj₂ (skip (pos v)) ∷ c₂) empty
+
+    ⟨mp⁺⟩ : ∀ c₁ c₂ → ⟨holds⁺⟩ c₁ empty → (⟨holds⟩ (simpl c₁ empty) → ⟨holds⟩ c₂) → ⟨holds⟩ c₂
+
+rules : Rules
+rules =
+  record {
+    ⟨holds⟩        = holds ;
+    ⟨holds-[]⟩     = holds-[] ;
+    ⟨holds⁺⟩       = holds⁺ ;
+    ⟨holds-holds⁺⟩ = λ c → holds-holds⁺ {c} ;
+    ⟨resolve⁺-r⟩   = λ c₁ c₂ → resolve⁺-r {c₁} {c₂} ;
+    ⟨resolve⁺-q⟩   = λ c₁ c₂ → resolve⁺-q {c₁} {c₂} ;
+    ⟨mp⁺⟩          = λ c₁ c₂ → mp⁺ {c₁} {c₂}
+  }
 
 {-
 --- SMT ---
