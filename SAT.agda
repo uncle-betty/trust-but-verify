@@ -424,6 +424,25 @@ simpl-mp (holds⁺ c₁ p₁) fn = fn (holdsᶜ (simpl c₁ empty) (simpl-sound 
 mp : ∀ {c₁ c₂} → Holdsᶜ c₁ → (Holdsᶜ c₁ → Holdsᶜ c₂) → Holdsᶜ c₂
 mp h₁ fn = fn h₁
 
+data From (A : Set) (c : Clause⁺) : Set where
+  from : (A → Holds⁺ c) → From A c
+
+from⁺ : ∀ {c} → From (Holds⁺ c) c
+from⁺ = from id
+
+fromᶜ : ∀ {c} → From (Holdsᶜ c) (compl c)
+fromᶜ = from expand
+
+resolve-r⁺ : ∀ {c₁ c₂} → {X₁ X₂ : Set} → {{From X₁ c₁}} → {{From X₂ c₂ }} → X₁ → X₂ →
+  (v : Var) → Holds⁺ (inj₂ (join (inj₂ (skip (pos v)) ∷ c₁)) ∷ inj₂ (skip (neg v)) ∷ c₂)
+
+resolve-r⁺ {{from f₁}} {{from f₂}} x₁ x₂ v = resolve-r (f₁ x₁) (f₂ x₂) v
+
+resolve-q⁺ : ∀ {c₁ c₂} → {X₁ X₂ : Set} → {{From X₁ c₁}} → {{From X₂ c₂ }} → X₁ → X₂ →
+  (v : Var) → Holds⁺ (inj₂ (join (inj₂ (skip (neg v)) ∷ c₁)) ∷ inj₂ (skip (pos v)) ∷ c₂)
+
+resolve-q⁺ {{from f₁}} {{from f₂}} x₁ x₂ v = resolve-q (f₁ x₁) (f₂ x₂) v
+
 dedup : Clause → ⟨Set⟩ → Clause
 dedup []       _ = []
 dedup (l ∷ ls) s = if l ∈? s then dedup ls s else l ∷ dedup ls (insert l s)
