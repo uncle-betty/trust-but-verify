@@ -128,9 +128,9 @@ postulate
 set-≡ : ∀ s₁ s₂ → Set
 set-≡ s₁ s₂ = ∀ l′ → (l′ ∈? s₁) ≡ (l′ ∈? s₂)
 
-set-add : ∀ {s₁ s₂} l → set-≡ s₁ s₂ → (∀ l′ → (l′ ∈? (insert l s₁)) ≡ (l′ ∈? (insert l s₂)))
+set-add-≡ : ∀ {s₁ s₂} l → set-≡ s₁ s₂ → (∀ l′ → (l′ ∈? (insert l s₁)) ≡ (l′ ∈? (insert l s₂)))
 
-set-add {s₁} {s₂} l p l′ with dec-≡ˡ l′ l
+set-add-≡ {s₁} {s₂} l p l′ with dec-≡ˡ l′ l
 ... | yes p′ rewrite p′ | set-insed l s₁ | set-insed l s₂ = refl
 ... | no  p′ rewrite set-other l′ l s₁ p′ | set-other l′ l s₂ p′ = p l′
 
@@ -186,11 +186,11 @@ evalᵛ v with M.lookup v envir
 propᵛ : Var → Set
 propᵛ = T ∘ evalᵛ
 
-evalᵛ-t : ∀ {v} → evalᵛ v ≡ true → propᵛ v
-evalᵛ-t p = subst id (sym (cong T p)) tt
+proveᵛ : ∀ {v} → evalᵛ v ≡ true → propᵛ v
+proveᵛ p = subst id (sym (cong T p)) tt
 
-evalᵛ-f : ∀ {v} → evalᵛ v ≡ false → ¬ propᵛ v
-evalᵛ-f p r = subst id (cong T p) r
+proveᵛ-¬ : ∀ {v} → evalᵛ v ≡ false → ¬ propᵛ v
+proveᵛ-¬ p r = subst id (cong T p) r
 
 evalˡ : Lit → Bool
 evalˡ (pos v′) = evalᵛ v′
@@ -200,13 +200,13 @@ propˡ : Lit → Set
 propˡ (pos v′) = propᵛ v′
 propˡ (neg v′) = ¬ (propᵛ v′)
 
-evalˡ-t : ∀ {l} → evalˡ l ≡ true → propˡ l
-evalˡ-t {pos v′} p = evalᵛ-t p
-evalˡ-t {neg v′} p = evalᵛ-f (not-t⇒f p)
+proveˡ : ∀ {l} → evalˡ l ≡ true → propˡ l
+proveˡ {pos v′} p = proveᵛ p
+proveˡ {neg v′} p = proveᵛ-¬ (not-t⇒f p)
 
-evalˡ-f : ∀ {l} → evalˡ l ≡ false → ¬ propˡ l
-evalˡ-f {pos v′} p r = contradiction r (evalᵛ-f p)
-evalˡ-f {neg v′} p r = contradiction (evalᵛ-t (not-f⇒t p)) r
+proveˡ-¬ : ∀ {l} → evalˡ l ≡ false → ¬ propˡ l
+proveˡ-¬ {pos v′} p r = contradiction r (proveᵛ-¬ p)
+proveˡ-¬ {neg v′} p r = contradiction (proveᵛ (not-f⇒t p)) r
 
 evalᶜ : Clause → Bool
 evalᶜ []        = false
@@ -216,21 +216,18 @@ propᶜ : Clause → Set
 propᶜ []        = ⊥
 propᶜ (l′ ∷ ls) = propˡ l′ ⊎ propᶜ ls
 
-data Holdsᶜ : Clause → Set where
-  holdsᶜ : (c : Clause) → (p : evalᶜ c ≡ true) → Holdsᶜ c
+proveᶜ : ∀ {c} → evalᶜ c ≡ true → propᶜ c
+proveᶜ {l′ ∷ ls} p with evalˡ l′ | inspect evalˡ l′
+... | true  | [ eq ] = inj₁ (proveˡ {l′} eq)
+... | false | [ eq ] = inj₂ (proveᶜ p)
 
-evalᶜ-t : ∀ {c} → evalᶜ c ≡ true → propᶜ c
-evalᶜ-t {l′ ∷ ls} p with evalˡ l′ | inspect evalˡ l′
-... | true  | [ eq ] = inj₁ (evalˡ-t {l′} eq)
-... | false | [ eq ] = inj₂ (evalᶜ-t p)
+proveᶜ-¬ : ∀ {c} → evalᶜ c ≡ false → ¬ propᶜ c
+proveᶜ-¬ {[]}      _  r = ⊥-elim r
 
-evalᶜ-f : ∀ {c} → evalᶜ c ≡ false → ¬ propᶜ c
-evalᶜ-f {[]}      _  r = ⊥-elim r
-
-evalᶜ-f {l′ ∷ ls} p  r with evalˡ l′ | inspect evalˡ l′
-evalᶜ-f {l′ ∷ ls} () _         | true  | _
-evalᶜ-f {l′ ∷ ls} _  (inj₁ r′) | false | [ eq ] = contradiction r′ (evalˡ-f {l′} eq)
-evalᶜ-f {l′ ∷ ls} p  (inj₂ r′) | false | _      = contradiction r′ (evalᶜ-f p)
+proveᶜ-¬ {l′ ∷ ls} p  r with evalˡ l′ | inspect evalˡ l′
+proveᶜ-¬ {l′ ∷ ls} () _         | true  | _
+proveᶜ-¬ {l′ ∷ ls} _  (inj₁ r′) | false | [ eq ] = contradiction r′ (proveˡ-¬ {l′} eq)
+proveᶜ-¬ {l′ ∷ ls} p  (inj₂ r′) | false | _      = contradiction r′ (proveᶜ-¬ p)
 
 eval⁺ : Clause⁺ → ⟨Set⟩ → Bool
 eval⁺ []                    s = false
@@ -244,54 +241,61 @@ prop⁺ (inj₁ l′        ∷ xs) s = if l′ ∈? s then prop⁺ xs s else pr
 prop⁺ (inj₂ (join c′) ∷ xs) s = prop⁺ c′ s ⊎ prop⁺ xs s
 prop⁺ (inj₂ (skip l′) ∷ xs) s = prop⁺ xs (insert l′ s)
 
-data Holds⁺ : Clause⁺ → Set where
-  holds⁺ : (c : Clause⁺) → (p : eval⁺ c empty ≡ true) → Holds⁺ c
+prove⁺ : ∀ {c s} → eval⁺ c s ≡ true → prop⁺ c s
+prove⁺ {inj₁ l′ ∷ xs} {s} p with l′ ∈? s | evalˡ l′ | inspect evalˡ l′
+... | true  | _     | _       = prove⁺ {xs} {s} p
+... | false | true  | [ eq ]  = inj₁ (proveˡ {l′} eq)
+... | false | false | _       = inj₂ (prove⁺ {xs} {s} p)
 
-eval⁺-t : ∀ {c s} → eval⁺ c s ≡ true → prop⁺ c s
-eval⁺-t {inj₁ l′ ∷ xs} {s} p with l′ ∈? s | evalˡ l′ | inspect evalˡ l′
-... | true  | _     | _       = eval⁺-t {xs} {s} p
-... | false | true  | [ eq ]  = inj₁ (evalˡ-t {l′} eq)
-... | false | false | _       = inj₂ (eval⁺-t {xs} {s} p)
+prove⁺ {inj₂ (join c′) ∷ xs} {s} p with eval⁺ c′ s | inspect (eval⁺ c′) s
+... | true  | [ eq ] = inj₁ (prove⁺ {c′} {s} eq)
+... | false | _      = inj₂ (prove⁺ {xs} {s} p)
 
-eval⁺-t {inj₂ (join c′) ∷ xs} {s} p with eval⁺ c′ s | inspect (eval⁺ c′) s
-... | true  | [ eq ] = inj₁ (eval⁺-t {c′} {s} eq)
-... | false | _      = inj₂ (eval⁺-t {xs} {s} p)
+prove⁺ {inj₂ (skip l′) ∷ xs} {s} p = prove⁺ {xs} {insert l′ s} p
 
-eval⁺-t {inj₂ (skip l′) ∷ xs} {s} p = eval⁺-t {xs} {insert l′ s} p
+prove⁺-¬ : ∀ {c s} → eval⁺ c s ≡ false → ¬ prop⁺ c s
+prove⁺-¬ {[]} {s} p r = ⊥-elim r
 
-eval⁺-f : ∀ {c s} → eval⁺ c s ≡ false → ¬ prop⁺ c s
-eval⁺-f {[]} {s} p r = ⊥-elim r
+prove⁺-¬ {inj₁ l′ ∷ xs} {s} p  r with l′ ∈? s | evalˡ l′ | inspect evalˡ l′
 
-eval⁺-f {inj₁ l′ ∷ xs} {s} p  r with l′ ∈? s | evalˡ l′ | inspect evalˡ l′
-eval⁺-f {inj₁ l′ ∷ xs} {s} p  r         | true  | _     | _      = contradiction r (eval⁺-f {xs} {s} p)
-eval⁺-f {inj₁ l′ ∷ xs} {_} () _         | false | true  | _
-eval⁺-f {inj₁ l′ ∷ xs} {_} _  (inj₁ r′) | false | false | [ eq ] = contradiction r′ (evalˡ-f {l′} eq)
-eval⁺-f {inj₁ l′ ∷ xs} {s} p  (inj₂ r′) | false | false | _      =
-  contradiction r′ (eval⁺-f {xs} {s} p)
+prove⁺-¬ {inj₁ l′ ∷ xs} {s} p  r         | true  | _     | _      =
+  contradiction r (prove⁺-¬ {xs} {s} p)
 
-eval⁺-f {inj₂ (join c′) ∷ xs} {s} p  r with eval⁺ c′ s | inspect (eval⁺ c′) s
-eval⁺-f {inj₂ (join c′) ∷ xs} {_} () _         | true  | _
-eval⁺-f {inj₂ (join c′) ∷ xs} {s} _  (inj₁ r′) | false | [ eq ] = contradiction r′ (eval⁺-f {c′} {s} eq)
-eval⁺-f {inj₂ (join c′) ∷ xs} {s} p  (inj₂ r′) | false | _      = contradiction r′ (eval⁺-f {xs} {s} p)
+prove⁺-¬ {inj₁ l′ ∷ xs} {_} () _         | false | true  | _
 
-eval⁺-f {inj₂ (skip l′) ∷ xs} {s} p r = contradiction r (eval⁺-f {xs} {insert l′ s} p)
+prove⁺-¬ {inj₁ l′ ∷ xs} {_} _  (inj₁ r′) | false | false | [ eq ] =
+  contradiction r′ (proveˡ-¬ {l′} eq)
 
-eval⁺-≡ : ∀ {s₁ s₂} c → set-≡ s₁ s₂ → eval⁺ c s₁ ≡ eval⁺ c s₂
-eval⁺-≡ [] p = refl
+prove⁺-¬ {inj₁ l′ ∷ xs} {s} p  (inj₂ r′) | false | false | _      =
+  contradiction r′ (prove⁺-¬ {xs} {s} p)
 
-eval⁺-≡ {s₁} {s₂} (inj₁ l′ ∷ xs) p rewrite p l′ with l′ ∈? s₂
-... | true  = eval⁺-≡ {s₁} {s₂} xs p
-... | false rewrite eval⁺-≡ {s₁} {s₂} xs p = refl
+prove⁺-¬ {inj₂ (join c′) ∷ xs} {s} p  r with eval⁺ c′ s | inspect (eval⁺ c′) s
+prove⁺-¬ {inj₂ (join c′) ∷ xs} {_} () _         | true  | _
 
-eval⁺-≡ {s₁} {s₂} (inj₂ (join c′) ∷ xs) p
-  rewrite eval⁺-≡ {s₁} {s₂} c′ p | eval⁺-≡ {s₁} {s₂} xs p = refl
+prove⁺-¬ {inj₂ (join c′) ∷ xs} {s} _  (inj₁ r′) | false | [ eq ] =
+  contradiction r′ (prove⁺-¬ {c′} {s} eq)
 
-eval⁺-≡ {s₁} {s₂} (inj₂ (skip l′) ∷ xs) p =
-  eval⁺-≡ {insert l′ s₁} {insert l′ s₂} xs (set-add {s₁} {s₂} l′ p)
+prove⁺-¬ {inj₂ (join c′) ∷ xs} {s} p  (inj₂ r′) | false | _      =
+  contradiction r′ (prove⁺-¬ {xs} {s} p)
 
-eval⁺-com : ∀ c l₁ l₂ s → eval⁺ c (insert l₁ (insert l₂ s)) ≡ eval⁺ c (insert l₂ (insert l₁ s))
-eval⁺-com c l₁ l₂ s =
-  eval⁺-≡ {insert l₁ (insert l₂ s)} {insert l₂ (insert l₁ s)} c (set-add-com l₁ l₂ s)
+prove⁺-¬ {inj₂ (skip l′) ∷ xs} {s} p r = contradiction r (prove⁺-¬ {xs} {insert l′ s} p)
+
+eval⁺-add-≡ : ∀ {s₁ s₂} c → set-≡ s₁ s₂ → eval⁺ c s₁ ≡ eval⁺ c s₂
+eval⁺-add-≡ [] p = refl
+
+eval⁺-add-≡ {s₁} {s₂} (inj₁ l′ ∷ xs) p rewrite p l′ with l′ ∈? s₂
+... | true  = eval⁺-add-≡ {s₁} {s₂} xs p
+... | false rewrite eval⁺-add-≡ {s₁} {s₂} xs p = refl
+
+eval⁺-add-≡ {s₁} {s₂} (inj₂ (join c′) ∷ xs) p
+  rewrite eval⁺-add-≡ {s₁} {s₂} c′ p | eval⁺-add-≡ {s₁} {s₂} xs p = refl
+
+eval⁺-add-≡ {s₁} {s₂} (inj₂ (skip l′) ∷ xs) p =
+  eval⁺-add-≡ {insert l′ s₁} {insert l′ s₂} xs (set-add-≡ {s₁} {s₂} l′ p)
+
+eval⁺-add-com : ∀ c l₁ l₂ s → eval⁺ c (insert l₁ (insert l₂ s)) ≡ eval⁺ c (insert l₂ (insert l₁ s))
+eval⁺-add-com c l₁ l₂ s =
+  eval⁺-add-≡ {insert l₁ (insert l₂ s)} {insert l₂ (insert l₁ s)} c (set-add-com l₁ l₂ s)
 
 flipˡ : Lit → Lit
 flipˡ (pos v) = neg v
@@ -309,77 +313,87 @@ ite-same : ∀ {A : Set} b (a : A) → (if b then a else a) ≡ a
 ite-same true  x = refl
 ite-same false x = refl
 
-resolve⁺ : ∀ {l c s} → evalˡ l ≡ true → eval⁺ c s ≡ true → eval⁺ c (insert (flipˡ l) s) ≡ true
-resolve⁺ {l} {inj₁ l′ ∷ xs} {s} h₁ h₂ with dec-≡ˡ l′ (flipˡ l)
+resolve : ∀ {l c s} → evalˡ l ≡ true → eval⁺ c s ≡ true → eval⁺ c (insert (flipˡ l) s) ≡ true
+resolve {l} {inj₁ l′ ∷ xs} {s} h₁ h₂ with dec-≡ˡ l′ (flipˡ l)
 
-resolve⁺ {l} {inj₁ l′ ∷ xs} {s} h₁ h₂ | yes p
+resolve {l} {inj₁ l′ ∷ xs} {s} h₁ h₂ | yes p
   rewrite p
         | set-insed (flipˡ l) s
         | flipˡ-t≡f {l} h₁
         | ite-same (flipˡ l ∈? s) (eval⁺ xs s)
-        = resolve⁺ {l} {xs} {s} h₁ h₂
+        = resolve {l} {xs} {s} h₁ h₂
 
-resolve⁺ {l} {inj₁ l′ ∷ xs} {s} h₁ h₂ | no p rewrite set-other l′ (flipˡ l) s p with l′ ∈? s
-... | true  = resolve⁺ {l} {xs} {s} h₁ h₂
+resolve {l} {inj₁ l′ ∷ xs} {s} h₁ h₂ | no p rewrite set-other l′ (flipˡ l) s p with l′ ∈? s
+... | true  = resolve {l} {xs} {s} h₁ h₂
 ... | false with evalˡ l′
 ... | true  = refl
-... | false = resolve⁺ {l} {xs} {s} h₁ h₂
+... | false = resolve {l} {xs} {s} h₁ h₂
 
-resolve⁺ {l} {inj₂ (join c′) ∷ xs} {s} h₁ h₂ with eval⁺ c′ s | inspect (eval⁺ c′) s
-... | true  | [ eq ] rewrite resolve⁺ {l} {c′} {s} h₁ eq = refl
-... | false | _      rewrite resolve⁺ {l} {xs} {s} h₁ h₂ = ∨-zeroʳ (eval⁺ c′ (insert (flipˡ l) s))
+resolve {l} {inj₂ (join c′) ∷ xs} {s} h₁ h₂ with eval⁺ c′ s | inspect (eval⁺ c′) s
+... | true  | [ eq ] rewrite resolve {l} {c′} {s} h₁ eq = refl
+... | false | _      rewrite resolve {l} {xs} {s} h₁ h₂ = ∨-zeroʳ (eval⁺ c′ (insert (flipˡ l) s))
 
-resolve⁺ {l} {inj₂ (skip l′) ∷ xs} {s} h₁ h₂
-  rewrite eval⁺-com xs l′ (flipˡ l) s = resolve⁺ {l} {xs} {insert l′ s} h₁ h₂
+resolve {l} {inj₂ (skip l′) ∷ xs} {s} h₁ h₂
+  rewrite eval⁺-add-com xs l′ (flipˡ l) s = resolve {l} {xs} {insert l′ s} h₁ h₂
 
-⟨resolve⁺-r⟩ : ∀ {c₁ c₂} → eval⁺ c₁ empty ≡ true → eval⁺ c₂ empty ≡ true → (v : Var) →
-  eval⁺ (inj₂ (join (inj₂ (skip (pos v)) ∷ c₁)) ∷ inj₂ (skip (neg v)) ∷ c₂) empty ≡ true
+data Holdsᶜ : Clause → Set where
+  holdsᶜ : (c : Clause) → (p : evalᶜ c ≡ true) → Holdsᶜ c
 
-⟨resolve⁺-r⟩ {c₁} {c₂} h₁ h₂ v with evalᵛ v | inspect evalᵛ v
-... | true | [ eq ]
-  rewrite resolve⁺ {pos v} {c₂} {empty} eq h₂
-        = ∨-zeroʳ (eval⁺ c₁ (insert (pos v) empty))
+data Holds⁺ : Clause⁺ → Set where
+  holds⁺ : (c : Clause⁺) → (p : eval⁺ c empty ≡ true) → Holds⁺ c
 
-... | false | [ eq ] rewrite resolve⁺ {neg v} {c₁} {empty} (f⇒not-t eq) h₁ = refl
-
-resolve⁺-r : ∀ {c₁ c₂} → Holds⁺ c₁ → Holds⁺ c₂ → (v : Var) →
+resolve-r : ∀ {c₁ c₂} → Holds⁺ c₁ → Holds⁺ c₂ → (v : Var) →
   Holds⁺ (inj₂ (join (inj₂ (skip (pos v)) ∷ c₁)) ∷ inj₂ (skip (neg v)) ∷ c₂)
 
-resolve⁺-r (holds⁺ c₁ p₁) (holds⁺ c₂ p₂) v = holds⁺ _ (⟨resolve⁺-r⟩ {c₁} {c₂} p₁ p₂ v)
+resolve-r (holds⁺ c₁ p₁) (holds⁺ c₂ p₂) v = holds⁺ _ (help {c₁} {c₂} p₁ p₂ v)
 
-⟨resolve⁺-q⟩ : ∀ {c₁ c₂} → eval⁺ c₁ empty ≡ true → eval⁺ c₂ empty ≡ true → (v : Var) →
-  eval⁺ (inj₂ (join (inj₂ (skip (neg v)) ∷ c₁)) ∷ inj₂ (skip (pos v)) ∷ c₂) empty ≡ true
+  where
 
-⟨resolve⁺-q⟩ {c₁} {c₂} h₁ h₂ v with evalᵛ v | inspect evalᵛ v
-... | true  | [ eq ] rewrite resolve⁺ {pos v} {c₁} {empty} eq h₁ = refl
+  help : ∀ {c₁ c₂} → eval⁺ c₁ empty ≡ true → eval⁺ c₂ empty ≡ true → (v : Var) →
+    eval⁺ (inj₂ (join (inj₂ (skip (pos v)) ∷ c₁)) ∷ inj₂ (skip (neg v)) ∷ c₂) empty ≡ true
 
-... | false | [ eq ]
-  rewrite resolve⁺ {neg v} {c₂} {empty} (f⇒not-t eq) h₂
-        = ∨-zeroʳ (eval⁺ c₁ (insert (neg v) empty))
+  help {c₁} {c₂} h₁ h₂ v with evalᵛ v | inspect evalᵛ v
+  ... | true | [ eq ]
+    rewrite resolve {pos v} {c₂} {empty} eq h₂
+          = ∨-zeroʳ (eval⁺ c₁ (insert (pos v) empty))
 
-resolve⁺-q : ∀ {c₁ c₂} → Holds⁺ c₁ → Holds⁺ c₂ → (v : Var) →
+  ... | false | [ eq ] rewrite resolve {neg v} {c₁} {empty} (f⇒not-t eq) h₁ = refl
+
+resolve-q : ∀ {c₁ c₂} → Holds⁺ c₁ → Holds⁺ c₂ → (v : Var) →
   Holds⁺ (inj₂ (join (inj₂ (skip (neg v)) ∷ c₁)) ∷ inj₂ (skip (pos v)) ∷ c₂)
 
-resolve⁺-q (holds⁺ c₁ p₁) (holds⁺ c₂ p₂) v = holds⁺ _ (⟨resolve⁺-q⟩ {c₁} {c₂} p₁ p₂ v)
+resolve-q (holds⁺ c₁ p₁) (holds⁺ c₂ p₂) v = holds⁺ _ (help {c₁} {c₂} p₁ p₂ v)
+
+  where
+
+  help : ∀ {c₁ c₂} → eval⁺ c₁ empty ≡ true → eval⁺ c₂ empty ≡ true → (v : Var) →
+    eval⁺ (inj₂ (join (inj₂ (skip (neg v)) ∷ c₁)) ∷ inj₂ (skip (pos v)) ∷ c₂) empty ≡ true
+
+  help {c₁} {c₂} h₁ h₂ v with evalᵛ v | inspect evalᵛ v
+  ... | true  | [ eq ] rewrite resolve {pos v} {c₁} {empty} eq h₁ = refl
+
+  ... | false | [ eq ]
+    rewrite resolve {neg v} {c₂} {empty} (f⇒not-t eq) h₂
+          = ∨-zeroʳ (eval⁺ c₁ (insert (neg v) empty))
 
 compl : Clause → Clause⁺
 compl = map inj₁
 
-⟨simpl⟩ : Clause⁺ → ⟨Set⟩ → Clause
-⟨simpl⟩ []                   _ = []
-⟨simpl⟩ (inj₁ l        ∷ xs) s = if l ∈? s then ⟨simpl⟩ xs s else l ∷ ⟨simpl⟩ xs s
-⟨simpl⟩ (inj₂ (join c) ∷ xs) s = ⟨simpl⟩ c s ++ ⟨simpl⟩ xs s
-⟨simpl⟩ (inj₂ (skip l) ∷ xs) s = ⟨simpl⟩ xs (insert l s)
+simpl : Clause⁺ → ⟨Set⟩ → Clause
+simpl []                   _ = []
+simpl (inj₁ l        ∷ xs) s = if l ∈? s then simpl xs s else l ∷ simpl xs s
+simpl (inj₂ (join c) ∷ xs) s = simpl c s ++ simpl xs s
+simpl (inj₂ (skip l) ∷ xs) s = simpl xs (insert l s)
 
-simpl = λ c → ⟨simpl⟩ c empty
+expand : ∀ {c} → Holdsᶜ c → Holds⁺ (compl c)
+expand (holdsᶜ c p) = holds⁺ _ (help {c} p)
 
-evalᶜ-eval⁺ : ∀ {c} → evalᶜ c ≡ true → eval⁺ (compl c) empty ≡ true
-evalᶜ-eval⁺ {l′ ∷ ls} h with evalˡ l′
-... | true  = refl
-... | false = evalᶜ-eval⁺ {ls} h
+  where
 
-holdsᶜ-holds⁺ : ∀ {c} → Holdsᶜ c → Holds⁺ (compl c)
-holdsᶜ-holds⁺ (holdsᶜ c p) = holds⁺ _ (evalᶜ-eval⁺ {c} p)
+  help : ∀ {c} → evalᶜ c ≡ true → eval⁺ (compl c) empty ≡ true
+  help {l′ ∷ ls} h with evalˡ l′
+  ... | true  = refl
+  ... | false = help {ls} h
 
 evalᶜ-++ʳ : ∀ {c₁ c₂} → evalᶜ c₁ ≡ true → evalᶜ (c₁ ++ c₂) ≡ true
 evalᶜ-++ʳ {l′ ∷ ls} {c₂} h with evalˡ l′
@@ -390,29 +404,22 @@ evalᶜ-++ˡ : ∀ {c₁ c₂} → evalᶜ c₂ ≡ true → evalᶜ (c₁ ++ c�
 evalᶜ-++ˡ {[]}      {c₂} h = h
 evalᶜ-++ˡ {l′ ∷ ls} {c₂} h rewrite evalᶜ-++ˡ {ls} {c₂} h = ∨-zeroʳ (evalˡ l′)
 
-simpl-evalᶜ : ∀ {c s} → eval⁺ c s ≡ true → evalᶜ (⟨simpl⟩ c s) ≡ true
+evalᶜ-simp : ∀ {c s} → eval⁺ c s ≡ true → evalᶜ (simpl c s) ≡ true
 
-simpl-evalᶜ {inj₁ l′ ∷ xs} {s} h with l′ ∈? s
-... | true  = simpl-evalᶜ {xs} {s} h
+evalᶜ-simp {inj₁ l′ ∷ xs} {s} h with l′ ∈? s
+... | true  = evalᶜ-simp {xs} {s} h
 ... | false with evalˡ l′
 ... | true  = refl
-... | false = simpl-evalᶜ {xs} {s} h
+... | false = evalᶜ-simp {xs} {s} h
 
-simpl-evalᶜ {inj₂ (join c′) ∷ xs} {s} h with eval⁺ c′ s | inspect (eval⁺ c′) s
-... | true  | [ eq ] = evalᶜ-++ʳ {⟨simpl⟩ c′ s} {⟨simpl⟩ xs s} (simpl-evalᶜ {c′} {s} eq)
-... | false | [ eq ] = evalᶜ-++ˡ {⟨simpl⟩ c′ s} {⟨simpl⟩ xs s} (simpl-evalᶜ {xs} {s} h)
+evalᶜ-simp {inj₂ (join c′) ∷ xs} {s} h with eval⁺ c′ s | inspect (eval⁺ c′) s
+... | true  | [ eq ] = evalᶜ-++ʳ {simpl c′ s} {simpl xs s} (evalᶜ-simp {c′} {s} eq)
+... | false | [ eq ] = evalᶜ-++ˡ {simpl c′ s} {simpl xs s} (evalᶜ-simp {xs} {s} h)
 
-simpl-evalᶜ {inj₂ (skip l′) ∷ xs} {s} h = simpl-evalᶜ {xs} {insert l′ s} h
+evalᶜ-simp {inj₂ (skip l′) ∷ xs} {s} h = evalᶜ-simp {xs} {insert l′ s} h
 
-⟨mp⁺⟩ : ∀ {c₁ c₂} → eval⁺ c₁ empty ≡ true → (evalᶜ (simpl c₁) ≡ true → evalᶜ c₂ ≡ true) →
-  evalᶜ c₂ ≡ true
-⟨mp⁺⟩ {c₁} {c₂} h₁ fn = fn (simpl-evalᶜ {c₁} {empty} h₁)
-
-mp⁺ : ∀ {c₁ c₂} → Holds⁺ c₁ → (Holdsᶜ (simpl c₁) → Holdsᶜ c₂) → Holdsᶜ c₂
-mp⁺ (holds⁺ c₁ p₁) fn = fn (holdsᶜ (simpl c₁) (simpl-evalᶜ {c₁} {empty} p₁))
-
-⟨mp⟩ : ∀ {c₁ c₂} → evalᶜ c₁ ≡ true → (evalᶜ c₁ ≡ true → evalᶜ c₂ ≡ true) → evalᶜ c₂ ≡ true
-⟨mp⟩ h₁ fn = fn h₁
+simp-mp : ∀ {c₁ c₂} → Holds⁺ c₁ → (Holdsᶜ (simpl c₁ empty) → Holdsᶜ c₂) → Holdsᶜ c₂
+simp-mp (holds⁺ c₁ p₁) fn = fn (holdsᶜ (simpl c₁ empty) (evalᶜ-simp {c₁} {empty} p₁))
 
 mp : ∀ {c₁ c₂} → Holdsᶜ c₁ → (Holdsᶜ c₁ → Holdsᶜ c₂) → Holdsᶜ c₂
 mp h₁ fn = fn h₁
