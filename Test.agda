@@ -1,4 +1,4 @@
-open import SAT using (var ; pos ; neg ; lit-<-STO ; Holdsᶜ ; expand ; resolve-r ; resolve-q ; simp-mp)
+open import SAT using (var ; pos ; neg ; lit-<-STO ; Holdsᶜ ; expand ; resolve-r ; resolve-q ; simpl-mp)
 
 module Test where
 
@@ -14,4 +14,4 @@ sat₁ a b r =
   let r⁺ = expand r in
   let x₁ = resolve-r a⁺ r⁺ (var 0) in
   let x₂ = resolve-q b⁺ x₁ (var 1) in
-  simp-mp x₂ id
+  simpl-mp x₂ id

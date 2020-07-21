@@ -297,33 +297,33 @@ eval⁺-add-com : ∀ c l₁ l₂ s → eval⁺ c (insert l₁ (insert l₂ s)) 
 eval⁺-add-com c l₁ l₂ s =
   eval⁺-add-≡ {insert l₁ (insert l₂ s)} {insert l₂ (insert l₁ s)} c (set-add-com l₁ l₂ s)
 
-flipˡ : Lit → Lit
-flipˡ (pos v) = neg v
-flipˡ (neg v) = pos v
+flip : Lit → Lit
+flip (pos v) = neg v
+flip (neg v) = pos v
 
-flipˡ-t≡f : ∀ {l} → evalˡ l ≡ true → evalˡ (flipˡ l) ≡ false
-flipˡ-t≡f {pos v′} p = t⇒not-f p
-flipˡ-t≡f {neg v′} p = not-t⇒f p
+t≡flip-f : ∀ {l} → evalˡ l ≡ true → evalˡ (flip l) ≡ false
+t≡flip-f {pos v′} p = t⇒not-f p
+t≡flip-f {neg v′} p = not-t⇒f p
 
-flipˡ-f≡t : ∀ {l} → evalˡ l ≡ false → evalˡ (flipˡ l) ≡ true
-flipˡ-f≡t {pos v′} p = f⇒not-t p
-flipˡ-f≡t {neg v′} p = not-f⇒t p
+f≡flip-t : ∀ {l} → evalˡ l ≡ false → evalˡ (flip l) ≡ true
+f≡flip-t {pos v′} p = f⇒not-t p
+f≡flip-t {neg v′} p = not-f⇒t p
 
 ite-same : ∀ {A : Set} b (a : A) → (if b then a else a) ≡ a
 ite-same true  x = refl
 ite-same false x = refl
 
-resolve : ∀ {l c s} → evalˡ l ≡ true → eval⁺ c s ≡ true → eval⁺ c (insert (flipˡ l) s) ≡ true
-resolve {l} {inj₁ l′ ∷ xs} {s} h₁ h₂ with dec-≡ˡ l′ (flipˡ l)
+resolve : ∀ {l c s} → evalˡ l ≡ true → eval⁺ c s ≡ true → eval⁺ c (insert (flip l) s) ≡ true
+resolve {l} {inj₁ l′ ∷ xs} {s} h₁ h₂ with dec-≡ˡ l′ (flip l)
 
 resolve {l} {inj₁ l′ ∷ xs} {s} h₁ h₂ | yes p
   rewrite p
-        | set-insed (flipˡ l) s
-        | flipˡ-t≡f {l} h₁
-        | ite-same (flipˡ l ∈? s) (eval⁺ xs s)
+        | set-insed (flip l) s
+        | t≡flip-f {l} h₁
+        | ite-same (flip l ∈? s) (eval⁺ xs s)
         = resolve {l} {xs} {s} h₁ h₂
 
-resolve {l} {inj₁ l′ ∷ xs} {s} h₁ h₂ | no p rewrite set-other l′ (flipˡ l) s p with l′ ∈? s
+resolve {l} {inj₁ l′ ∷ xs} {s} h₁ h₂ | no p rewrite set-other l′ (flip l) s p with l′ ∈? s
 ... | true  = resolve {l} {xs} {s} h₁ h₂
 ... | false with evalˡ l′
 ... | true  = refl
@@ -331,10 +331,10 @@ resolve {l} {inj₁ l′ ∷ xs} {s} h₁ h₂ | no p rewrite set-other l′ (fl
 
 resolve {l} {inj₂ (join c′) ∷ xs} {s} h₁ h₂ with eval⁺ c′ s | inspect (eval⁺ c′) s
 ... | true  | [ eq ] rewrite resolve {l} {c′} {s} h₁ eq = refl
-... | false | _      rewrite resolve {l} {xs} {s} h₁ h₂ = ∨-zeroʳ (eval⁺ c′ (insert (flipˡ l) s))
+... | false | _      rewrite resolve {l} {xs} {s} h₁ h₂ = ∨-zeroʳ (eval⁺ c′ (insert (flip l) s))
 
 resolve {l} {inj₂ (skip l′) ∷ xs} {s} h₁ h₂
-  rewrite eval⁺-add-com xs l′ (flipˡ l) s = resolve {l} {xs} {insert l′ s} h₁ h₂
+  rewrite eval⁺-add-com xs l′ (flip l) s = resolve {l} {xs} {insert l′ s} h₁ h₂
 
 data Holdsᶜ : Clause → Set where
   holdsᶜ : (c : Clause) → (p : evalᶜ c ≡ true) → Holdsᶜ c
@@ -404,70 +404,68 @@ evalᶜ-++ˡ : ∀ {c₁ c₂} → evalᶜ c₂ ≡ true → evalᶜ (c₁ ++ c�
 evalᶜ-++ˡ {[]}      {c₂} h = h
 evalᶜ-++ˡ {l′ ∷ ls} {c₂} h rewrite evalᶜ-++ˡ {ls} {c₂} h = ∨-zeroʳ (evalˡ l′)
 
-evalᶜ-simp : ∀ {c s} → eval⁺ c s ≡ true → evalᶜ (simpl c s) ≡ true
+simpl-sound : ∀ {c s} → eval⁺ c s ≡ true → evalᶜ (simpl c s) ≡ true
 
-evalᶜ-simp {inj₁ l′ ∷ xs} {s} h with l′ ∈? s
-... | true  = evalᶜ-simp {xs} {s} h
+simpl-sound {inj₁ l′ ∷ xs} {s} h with l′ ∈? s
+... | true  = simpl-sound {xs} {s} h
 ... | false with evalˡ l′
 ... | true  = refl
-... | false = evalᶜ-simp {xs} {s} h
+... | false = simpl-sound {xs} {s} h
 
-evalᶜ-simp {inj₂ (join c′) ∷ xs} {s} h with eval⁺ c′ s | inspect (eval⁺ c′) s
-... | true  | [ eq ] = evalᶜ-++ʳ {simpl c′ s} {simpl xs s} (evalᶜ-simp {c′} {s} eq)
-... | false | [ eq ] = evalᶜ-++ˡ {simpl c′ s} {simpl xs s} (evalᶜ-simp {xs} {s} h)
+simpl-sound {inj₂ (join c′) ∷ xs} {s} h with eval⁺ c′ s | inspect (eval⁺ c′) s
+... | true  | [ eq ] = evalᶜ-++ʳ {simpl c′ s} {simpl xs s} (simpl-sound {c′} {s} eq)
+... | false | [ eq ] = evalᶜ-++ˡ {simpl c′ s} {simpl xs s} (simpl-sound {xs} {s} h)
 
-evalᶜ-simp {inj₂ (skip l′) ∷ xs} {s} h = evalᶜ-simp {xs} {insert l′ s} h
+simpl-sound {inj₂ (skip l′) ∷ xs} {s} h = simpl-sound {xs} {insert l′ s} h
 
-simp-mp : ∀ {c₁ c₂} → Holds⁺ c₁ → (Holdsᶜ (simpl c₁ empty) → Holdsᶜ c₂) → Holdsᶜ c₂
-simp-mp (holds⁺ c₁ p₁) fn = fn (holdsᶜ (simpl c₁ empty) (evalᶜ-simp {c₁} {empty} p₁))
+simpl-mp : ∀ {c₁ c₂} → Holds⁺ c₁ → (Holdsᶜ (simpl c₁ empty) → Holdsᶜ c₂) → Holdsᶜ c₂
+simpl-mp (holds⁺ c₁ p₁) fn = fn (holdsᶜ (simpl c₁ empty) (simpl-sound {c₁} {empty} p₁))
 
 mp : ∀ {c₁ c₂} → Holdsᶜ c₁ → (Holdsᶜ c₁ → Holdsᶜ c₂) → Holdsᶜ c₂
 mp h₁ fn = fn h₁
 
-{-
 dedup : Clause → ⟨Set⟩ → Clause
 dedup []       _ = []
 dedup (l ∷ ls) s = if l ∈? s then dedup ls s else l ∷ dedup ls (insert l s)
 
-dedup-≡ : ∀ s₁ s₂ c → set-≡ s₁ s₂ → dedup c s₁ ≡ dedup c s₂
-dedup-≡ s₁ s₂ [] p = refl
+dedup-≡ : ∀ {s₁ s₂} c → set-≡ s₁ s₂ → dedup c s₁ ≡ dedup c s₂
+dedup-≡ {s₁} {s₂} [] p = refl
 
-dedup-≡ s₁ s₂ (l′ ∷ ls) p
+dedup-≡ {s₁} {s₂} (l′ ∷ ls) p
   rewrite p l′
-        | dedup-≡ s₁ s₂ ls p
-        | dedup-≡ (insert l′ s₁) (insert l′ s₂) ls (set-add-mono l′ s₁ s₂ p)
+        | dedup-≡ {s₁} {s₂} ls p
+        | dedup-≡ {insert l′ s₁} {insert l′ s₂} ls (set-add-≡ {s₁} {s₂} l′ p)
         = refl
 
-dedup-com : ∀ l₁ l₂ s c → dedup c (insert l₁ (insert l₂ s)) ≡ dedup c (insert l₂ (insert l₁ s))
-dedup-com l₁ l₂ s c =
-  dedup-≡ (insert l₁ (insert l₂ s)) (insert l₂ (insert l₁ s)) c (set-add-com l₁ l₂ s)
+dedup-add-com : ∀ c l₁ l₂ s → dedup c (insert l₁ (insert l₂ s)) ≡ dedup c (insert l₂ (insert l₁ s))
+dedup-add-com c l₁ l₂ s =
+  dedup-≡ {insert l₁ (insert l₂ s)} {insert l₂ (insert l₁ s)} c (set-add-com l₁ l₂ s)
 
-dedup-flipˡ : ∀ l s c → holdsˡ l → holds (dedup c s) → holds (dedup c (insert (flipˡ l) s))
+dedup-add-f-≡ : ∀ {l c s} → evalˡ l ≡ false → evalᶜ (dedup c s) ≡ true →
+  evalᶜ (dedup c (insert l s)) ≡ true
 
-dedup-flipˡ l s (l′ ∷ ls) h₁ h₂ with dec-≡ˡ l′ (flipˡ l)
-... | yes p rewrite p | set-insed (flipˡ l) s with (flipˡ l) ∈? s
-... | true = dedup-flipˡ l s ls h₁ h₂
-... | false with h₂
-... | inj₁ h′ = contradiction h′ (flipˡ-¬ {l} h₁)
-... | inj₂ h′ = h′
+dedup-add-f-≡ {l} {l′ ∷ ls} {s} h₁ h₂ with dec-≡ˡ l′ l
+dedup-add-f-≡ {l} {l′ ∷ ls} {s} h₁ h₂ | yes p rewrite p | set-insed l s with l ∈? s
+... | true  = dedup-add-f-≡ {l} {ls} {s} h₁ h₂
+... | false rewrite h₁ = h₂
 
-dedup-flipˡ l s (l′ ∷ ls) h₁ h₂ | no p rewrite set-other l′ (flipˡ l) s p with l′ ∈? s
-... | true  = dedup-flipˡ l s ls h₁ h₂
-... | false with h₂
-... | inj₁ h′ = inj₁ h′
-... | inj₂ h′ rewrite dedup-com l′ (flipˡ l) s ls = inj₂ (dedup-flipˡ l (insert l′ s) ls h₁ h′)
+dedup-add-f-≡ {l} {l′ ∷ ls} {s} h₁ h₂ | no p rewrite set-other l′ l s p with l′ ∈? s
+... | true  = dedup-add-f-≡ {l} {ls} {s} h₁ h₂
+... | false with evalˡ l′
+... | true  = refl
+... | false rewrite dedup-add-com ls l′ l s = dedup-add-f-≡ {l} {ls} {insert l′ s} h₁ h₂
 
-dedup-holds : ∀ c → holds c → holds (dedup c empty)
-dedup-holds (l ∷ ls) (inj₁ h) = inj₁ h
+dedup-sound : ∀ {c} → evalᶜ c ≡ true → evalᶜ (dedup c empty) ≡ true
 
-dedup-holds (pos v ∷ ls) (inj₂ h) with evalᵛ v | inspect evalᵛ v
-... | true  | _      = inj₁ tt
-... | false | [ eq ] = inj₂ (dedup-flipˡ (neg v) empty ls (evalᵛ-f eq) (dedup-holds ls h))
+dedup-sound {pos v′ ∷ ls} h with evalᵛ v′ | inspect evalᵛ v′
+... | true  | _      = refl
+... | false | [ eq ] = dedup-add-f-≡ {pos v′} {ls} {empty} eq (dedup-sound {ls} h)
 
-dedup-holds (neg v ∷ ls) (inj₂ h) with evalᵛ v | inspect evalᵛ v
-... | true  | [ eq ] = inj₂ (dedup-flipˡ (pos v) empty ls (evalᵛ-t eq) (dedup-holds ls h))
-... | false | _      = inj₁ id
+dedup-sound {neg v′ ∷ ls} h with evalᵛ v′ | inspect evalᵛ v′
+... | true  | [ eq ] = dedup-add-f-≡ {neg v′} {ls} {empty} (t⇒not-f eq) (dedup-sound {ls} h)
+... | false | _      = refl
 
+{-
 --- SMT ---
 
 formula-op₁ = Formula → Formula
