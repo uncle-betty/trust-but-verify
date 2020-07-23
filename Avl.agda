@@ -1,5 +1,6 @@
 open import Agda.Primitive using (Level)
 open import Data.Bool using (true ; false)
+open import Data.Empty using (⊥)
 open import Data.List using (List ; [] ; _∷_ ; _++_)
 open import Data.List.Properties using (++-monoid)
 open import Data.Maybe using (Maybe ; nothing ; just)
@@ -8,25 +9,35 @@ open import Data.Nat.Properties using (<-strictTotalOrder ; <-cmp ; <⇒≢; <�
 open import Data.Product using (_,_ ; proj₁ ; proj₂)
 open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Function using (id)
-open import Relation.Binary using (Tri ; tri< ; tri≈ ; tri>)
+open import Relation.Binary using (tri< ; tri≈ ; tri>)
 open import Relation.Binary.Bundles using () renaming (StrictTotalOrder to STO)
-open import Relation.Binary.PropositionalEquality using (_≡_ ; _≢_ ; refl ; trans ; sym ; ≢-sym ; cong ; subst ; inspect ; [_])
-open import Relation.Nullary using (Dec ; _because_ ; ofʸ ; ofⁿ ; yes ; no)
-open import Relation.Nullary.Negation using (contradiction)
+
+open import Relation.Binary.Construct.Add.Extrema.Strict (STO._<_ <-strictTotalOrder)
+  using () renaming ([<]-injective to strip-<⁺)
+
+open import Relation.Binary.PropositionalEquality
+  using (_≡_ ; _≢_ ; refl ; trans ; sym ; ≢-sym ; cong ; subst ; inspect ; [_])
+
+open import Relation.Nullary using (Dec ; _because_ ; ofʸ ; ofⁿ ; yes ; no ; ¬_)
+open import Relation.Nullary.Negation using (contradiction ; contraposition)
 open import Tactic.MonoidSolver using (solve)
 
-open import Data.Tree.AVL.Indexed <-strictTotalOrder renaming ([_] to [_]ᴱ)
-open import Relation.Binary.Construct.Add.Extrema.Strict _<_ using () renaming ([<]-injective to strip-<⁺)
+open import Data.Tree.AVL.Indexed <-strictTotalOrder
+  using (
+    Key⁺ ; Value ; K&_ ;
+    _<⁺_ ; _<_<_ ; [_]ᴿ ; ⊥⁺ ; ⊤⁺ ; ⊥⁺<[_]<⊤⁺ ; trans⁺ ;
+    Tree ; leaf ; node ; 0# ; 1# ; ∼- ; ∼0 ; ∼+ ;
+    lookup ; insertWith ; joinˡ⁺ ; joinʳ⁺
+  ) renaming ([_] to [_]ᴱ)
 
 module Avl
   {ℓⱽ : Level}
   (V : Value ℓⱽ)
   (reduce : ∀ {k} (v : Value.family V k) → Value.respects V refl v ≡ v) where
 
-private
-  Key = STO.Carrier <-strictTotalOrder
-  Val = Value.family V
-  V≈  = Value.respects V
+Key = STO.Carrier <-strictTotalOrder
+Val = Value.family V
+V≈  = Value.respects V
 
 data Max : Key⁺ → List (K& V) → Set where
   max-[] : {m : Key⁺} → Max m []
@@ -44,37 +55,23 @@ max-lax {_} {_} {(k , v) ∷ xs} (max-∷ p ps .v) m₁<m₂ =
 
 data Min : Key⁺ → List (K& V) → Set where
   min-[] : {m : Key⁺} → Min m []
-  min-∷  : ∀ {k m l} → m <⁺ [ k ]ᴱ → Min m l → (v : Val k) → Min m ((k , v) ∷ l)
+  min-∷  : ∀ {k m l} → m <⁺ [ k ]ᴱ → Min [ k ]ᴱ l → (v : Val k) → Min m ((k , v) ∷ l)
 
-min-++ : ∀ {m l₁ l₂} → Min m l₁ → Min m l₂ → Min m (l₁ ++ l₂)
-min-++ {_} {[]}     _                p₂ = p₂
-min-++ {_} {x ∷ xs} (min-∷ p₁ ps₁ v) p₂ = min-∷ p₁ (min-++ ps₁ p₂) v
-
-min-lax : ∀ {m₁ m₂ l} → Min m₁ l → m₂ <⁺ m₁ → Min m₂ l
-min-lax {_} {_} {[]} _ _ = min-[]
-
-min-lax {_} {m₂} {(k , v) ∷ xs} (min-∷ p ps .v) m₂<m₁ =
-  min-∷ (trans⁺ m₂ m₂<m₁ p) (min-lax ps m₂<m₁) v
-
-min : Key → Key⁺ → Key⁺
-min k₁ ⊤⁺ = [ k₁ ]ᴱ
-min k₁ ⊥⁺ = ⊥⁺
-min k₁ [ k₂ ]ᴱ with <-cmp k₁ k₂
-... | tri< _ _ _ = [ k₁ ]ᴱ
-... | tri≈ _ _ _ = [ k₁ ]ᴱ
-... | tri> _ _ _ = [ k₂ ]ᴱ
-
-<-min : ∀ {k₁ k₂ k₃} → [ k₁ ]ᴱ <⁺ [ k₂ ]ᴱ → [ k₁ ]ᴱ <⁺ [ k₃ ]ᴱ → [ k₁ ]ᴱ <⁺ min k₂ [ k₃ ]ᴱ
-<-min {k₁} {k₂} {k₃} k₁<k₂ k₁<k₃ with <-cmp k₂ k₃
-... | tri< _ _ _ = k₁<k₂
-... | tri≈ _ _ _ = k₁<k₂
-... | tri> _ _ _ = k₁<k₃
+min-++ : ∀ {m k v l₁ l₂} → Min m l₁ → Max [ k ]ᴱ l₁ → Min [ k ]ᴱ l₂ → Min m (l₁ ++ (k , v) ∷ l₂)
+min-++ {m} {k} {v} {[]}               {l₂} m₁ m₂ m₃ = min-∷ {!!} m₃ v
+min-++ {m} {k} {v} {(k′ , v′) ∷ kvs′} {l₂} (min-∷ m<k′ m₁′ .v′) (max-∷ k′<k m₂′ .v′) m₃ =
+  min-∷ m<k′ (min-++ m₁′ m₂′ m₃) v′
 
 dec-≡ : (k₁ k₂ : Key) → Dec (k₁ ≡ k₂)
 dec-≡ k₁ k₂ with <-cmp k₁ k₂
 ... | tri< _ p _ = false because ofⁿ p
 ... | tri≈ _ p _ = true  because ofʸ p
 ... | tri> _ p _ = false because ofⁿ p
+
+dec-≡-refl : ∀ k → dec-≡ k k ≡ yes refl
+dec-≡-refl k with dec-≡ k k
+dec-≡-refl k | yes refl = refl
+dec-≡-refl k | no  k≢k  = contradiction refl k≢k
 
 lo<up : ∀ {l u h} → Tree V l u h → l <⁺ u
 lo<up     (leaf l<u)       = l<u
@@ -101,9 +98,8 @@ flat-max t@(node (_ , v′) tˡ tʳ _) =
   max-++ (max-lax (flat-max tˡ) (pi<up t)) (max-∷ (pi<up t) (flat-max tʳ) v′)
 
 flat-min : ∀ {l u h} → (t : Tree V l u h) → Min l (flat t)
-flat-min     (leaf _)                   = min-[]
-flat-min {l} t@(node (k′ , v′) tˡ tʳ _) =
-  min-++ (flat-min tˡ) (min-++ (min-∷ (lo<pi t) min-[] v′) (min-lax (flat-min tʳ) (lo<pi t)))
+flat-min (leaf _)                 = min-[]
+flat-min (node (k′ , v′) tˡ tʳ _) = min-++ (flat-min tˡ) (flat-max tˡ) (flat-min tʳ)
 
 get : (k : Key) → List (K& V) → Maybe (Val k)
 get k []               = nothing
@@ -333,21 +329,11 @@ put≡insert k f (node (k′ , v′) tˡ tʳ b) (l<k , k<u) | tri> _ _ p₃ | [ 
         | put≡insert k f tʳ ([ p₃ ]ᴿ , k<u)
   = refl
 
-put-get : ∀ {l u h} → (t : Tree V l u h) → (k k′ : Key) → (f : Maybe (Val k) → Val k) →
-  (l<k<u : l < k < u) (l<k′<u : l < k′ < u) →
-  get k′ (put k f (flat t)) ≡ lookup k′ (proj₂ (insertWith k f t l<k<u)) l<k′<u
-
-put-get t k k′ f l<k<u l<k′<u
-  rewrite put≡insert k f t l<k<u
-        | get≡lookup k′ (proj₂ (insertWith k f t l<k<u)) l<k′<u
-  = refl
-
 min-get : ∀ {m l k} → Min m l → [ k ]ᴱ <⁺ m → get k l ≡ nothing
 min-get min-[] _ = refl
-
-min-get {m} {(k′ , v′) ∷ kvs′} {k} (min-∷ m<k′ m′ .v′) k<m with dec-≡ k′ k
+min-get {_} {(k′ , v′) ∷ kvs′} {k} (min-∷ m<k′ m′ .v′) k<m with dec-≡ k′ k
 ... | yes p = contradiction p (≢-sym (<⇒≢ (strip-<⁺ (trans⁺ [ k ]ᴱ k<m m<k′))))
-... | no  p = min-get m′ k<m
+... | no  _ = min-get m′ (trans⁺ [ k ]ᴱ k<m m<k′)
 
 get-other : ∀ {k k′} f l → k′ ≢ k → get k′ (put k f l) ≡ get k′ l
 
@@ -379,7 +365,30 @@ get-insed {m} {l} {k} f min-[] with dec-≡ k k
 ... | yes refl rewrite reduce (f nothing) = refl
 ... | no  p    = contradiction refl p
 
-get-insed {m} {(k′ , v′) ∷ kvs′} {k} f (min-∷ k′<m′ m′ v) = {!!}
+get-insed {m} {(k′ , v′) ∷ kvs′} {k} f (min-∷ m<k′ m′ .v′)
+  with <-cmp k k′ | dec-≡ k′ k | inspect (dec-≡ k′) k
+
+... | tri< p₁ p₂ p₃ | yes p₄ | _ = contradiction (sym p₄) p₂
+
+... | tri< p₁ p₂ p₃ | no  p₄ | _
+  rewrite dec-≡-refl k
+        | reduce (f nothing)
+        | min-get m′ [ p₁ ]ᴿ
+  = refl
+
+... | tri≈ p₁ p₂ p₃ | yes p₄ | _
+  rewrite p₂
+        | dec-≡-refl k′
+        | p₄
+        | reduce v′
+        | reduce (f (just v′))
+        | reduce (f (just v′))
+  = refl
+
+... | tri≈ p₁ p₂ p₃ | no  p₄ | _ = contradiction (sym p₂) p₄
+... | tri> p₁ p₂ p₃ | yes p₄ | _ = contradiction (sym p₄) p₂
+... | tri> p₁ p₂ p₃ | no  p₄ | [ eq ] rewrite eq = get-insed f m′
+
 
 lookup-insed : ∀ {k h} → (f : Maybe (Val k) → Val k) → (t : Tree V ⊥⁺ ⊤⁺ h) →
   lookup k (proj₂ (insertWith k f t ⊥⁺<[ k ]<⊤⁺)) ⊥⁺<[ k ]<⊤⁺ ≡ just (f (lookup k t ⊥⁺<[ k ]<⊤⁺))
@@ -389,35 +398,3 @@ lookup-insed {k} f t
         | sym (get≡lookup k (proj₂ (insertWith k f t ⊥⁺<[ k ]<⊤⁺)) ⊥⁺<[ k ]<⊤⁺)
         | sym (put≡insert k f t ⊥⁺<[ k ]<⊤⁺)
   = get-insed f (flat-min t)
-
-{-
-insert-ok₂ : ∀ k f m l → Ord m l → get k (put k f l) ≡ just (f (get k l))
-
-insert-ok₂ k f .⊤⁺ [] ord-[]
-  rewrite ≟-diag (refl {x = k})
-        | CHEATER (f nothing)
-        = refl
-
-insert-ok₂ k f [ k′ ]ᴱ ((.k′ , v′) ∷ kvs′) (ord-∷ k′<m o′ .v′) with <-cmp k k′
-
-insert-ok₂ k f [ k′ ]ᴱ ((.k′ , v′) ∷ kvs′) (ord-∷ k′<m o′ .v′) | tri< p₁ p₂ _
-  rewrite ≟-diag (refl {x = k})
-     with k ≟ k′
-... | yes p₄ = contradiction p₄ p₂
-... | no  _
-  rewrite ord-lookup k kvs′ o′ (trans⁺ [ k ]ᴱ [ p₁ ]ᴿ k′<m)
-        | CHEATER (f nothing)
-        = refl
-
-insert-ok₂ k f [ k′ ]ᴱ ((.k′ , v′) ∷ kvs′) (ord-∷ k′<m o′ .v′) | tri≈ _ p₂ _
-  rewrite p₂
-        | ≟-diag (refl {x = k′})
-        | CHEATER v′
-        | CHEATER (f (just v′))
-        | CHEATER (f (just v′))
-        = refl
-
-insert-ok₂ k f [ k′ ]ᴱ ((.k′ , v′) ∷ kvs′) (ord-∷ k′<m o′ .v′) | tri> _ p₂ _ with k ≟ k′
-... | yes p₄ = contradiction p₄ p₂
-... | no  p₄ = insert-ok₂ k f _ kvs′ o′
--}
