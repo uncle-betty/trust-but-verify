@@ -229,28 +229,28 @@ flat-joinʳ⁺ k₂ v₂ t₁ 1# t₃@(node _ (node _ _ _ _) _ ∼+) ∼- = refl
 
 flat-joinʳ⁺ k₂ v₂ t₁ 0# t₃                              _  = refl
 
-put-lem₁ : ∀ {k k′} f v′ l₁ l₂ → k <ᴷ k′ →
+put-++ˡ : ∀ {k k′} f v′ l₁ l₂ → k <ᴷ k′ →
   put k f (l₁ ++ (k′ , v′) ∷ l₂) ≡ (put k f l₁) ++ (k′ , v′) ∷ l₂
 
-put-lem₁ {k} {k′} f v' [] l₂ k<k′ with compᴷ k k′
+put-++ˡ {k} {k′} f v' [] l₂ k<k′ with compᴷ k k′
 ... | tri< _ _ _ = refl
 ... | tri≈ p _ _ = contradiction k<k′ p
 ... | tri> p _ _ = contradiction k<k′ p
 
-put-lem₁ {k} {k′} f v′ ((k″ , v″) ∷ kvs″) l₂ k<k′ with compᴷ k k″
+put-++ˡ {k} {k′} f v′ ((k″ , v″) ∷ kvs″) l₂ k<k′ with compᴷ k k″
 ... | tri< _ _ _ = refl
 ... | tri≈ _ _ _ = refl
-... | tri> _ _ _ rewrite put-lem₁ f v′ kvs″ l₂ k<k′ = refl
+... | tri> _ _ _ rewrite put-++ˡ f v′ kvs″ l₂ k<k′ = refl
 
-put-lem₃ : ∀ {k k′} f v′ l₁ l₂ → All (Up [ k′ ]ᴱ) l₁ → ¬ k <ᴷ k′ →
+put-++ʳ : ∀ {k k′} f v′ l₁ l₂ → All (Up [ k′ ]ᴱ) l₁ → ¬ k <ᴷ k′ →
   put k f (l₁ ++ (k′ , v′) ∷ l₂) ≡ l₁ ++ (put k f ((k′ , v′) ∷ l₂))
 
-put-lem₃ {k} {k′} f v′ [] l₂ as ¬k<k′ = refl
+put-++ʳ {k} {k′} f v′ [] l₂ as ¬k<k′ = refl
 
-put-lem₃ {k} {k′} f v′ ((k″ , v″) ∷ kvs″) l₂ (a′ ∷ᴬ as′) ¬k<k′ with compᴷ k k″
+put-++ʳ {k} {k′} f v′ ((k″ , v″) ∷ kvs″) l₂ (a′ ∷ᴬ as′) ¬k<k′ with compᴷ k k″
 ... | tri< p _ _ = contradiction (<-transᴷ p (strip-<⁺ a′)) ¬k<k′
 ... | tri≈ _ p _ = contradiction (proj₂ <-resp-≡ᴷ (symᴷ p) (strip-<⁺ a′)) ¬k<k′
-... | tri> _ _ _ = cong ((k″ , v″) ∷_) (put-lem₃ f v′ kvs″ l₂ as′ ¬k<k′)
+... | tri> _ _ _ = cong ((k″ , v″) ∷_) (put-++ʳ f v′ kvs″ l₂ as′ ¬k<k′)
 
 lookup≡get : ∀ {l u h} → (k : Key) → (t : Tree V l u h) → (l<k<u : l < k < u) →
   lookup k t l<k<u ≡ get k (flat t)
@@ -286,14 +286,14 @@ insert≡put k f (node (k′ , v′) tˡ tʳ b) (l<k , k<u) with compᴷ k k′ 
 insert≡put k f (node (k′ , v′) tˡ tʳ b) (l<k , k<u) | tri< p₁ _ _ | [ eq₁ ]
   rewrite (let # = insertWith k f tˡ (l<k , [ p₁ ]ᴿ) in flat-joinˡ⁺ k′ v′ (proj₁ #) (proj₂ #) tʳ b)
         | insert≡put k f tˡ (l<k , [ p₁ ]ᴿ)
-        | put-lem₁ f v′ (flat tˡ) (flat tʳ) p₁
+        | put-++ˡ f v′ (flat tˡ) (flat tʳ) p₁
   = refl
 
 insert≡put k f (node (k′ , v′) tˡ tʳ b) (l<k , k<u) | tri≈ p₁ p₂ _ | [ eq₁ ] with equal p₂
 ... | refl
   rewrite reduce (symᴷ p₂) v′
         | reduce p₂ (f (just v′))
-        | put-lem₃ f v′ (flat tˡ) (flat tʳ) (all-up tˡ) p₁
+        | put-++ʳ f v′ (flat tˡ) (flat tʳ) (all-up tˡ) p₁
         | eq₁
         | reduce (symᴷ p₂) v′
         | reduce p₂ (f (just v′))
@@ -302,7 +302,7 @@ insert≡put k f (node (k′ , v′) tˡ tʳ b) (l<k , k<u) | tri≈ p₁ p₂ _
 insert≡put k f (node (k′ , v′) tˡ tʳ b) (l<k , k<u) | tri> p₁ _ p₂ | [ eq₁ ]
   rewrite (let # = insertWith k f tʳ ([ p₂ ]ᴿ , k<u) in flat-joinʳ⁺ k′ v′ tˡ (proj₁ #) (proj₂ #) b)
         | insert≡put k f tʳ ([ p₂ ]ᴿ , k<u)
-        | put-lem₃ f v′ (flat tˡ) (flat tʳ) (all-up tˡ) p₁
+        | put-++ʳ f v′ (flat tˡ) (flat tʳ) (all-up tˡ) p₁
         | eq₁
   = refl
 
