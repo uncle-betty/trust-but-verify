@@ -14,14 +14,9 @@ module AVL
 
 open import Agda.Primitive using (_⊔_) renaming (lzero to 0ℓ)
 
-open import Data.Bool using (true ; false)
 open import Data.List using (List ; [] ; _∷_ ; _++_)
 open import Data.List.Relation.Unary.All using (All) renaming ([] to []ᴬ ; _∷_ to _∷ᴬ_)
 open import Data.List.Relation.Unary.All.Properties using () renaming (++⁺ to ++ᴬ)
-
-open import Data.List.Relation.Unary.Linked
-  using (Linked) renaming ([] to []ᴸ ; [-] to [-]ᴸ ; _∷_ to _∷ᴸ_)
-
 open import Data.List.Properties using (++-monoid)
 open import Data.Maybe using (Maybe ; nothing ; just)
 open import Data.Nat using (suc)
@@ -38,15 +33,15 @@ open import Data.Tree.AVL.Indexed sto
 
 open import Function using (id ; _∘_ ; _$_)
 
-open import Relation.Binary using (Transitive ; tri< ; tri≈ ; tri>)
+open import Relation.Binary using (tri< ; tri≈ ; tri>)
 
 open import Relation.Binary.Construct.Add.Extrema.Strict (STO._<_ sto)
   using () renaming ([<]-injective to strip-<⁺)
 
 open import Relation.Binary.PropositionalEquality
-  using (refl ; _≢_ ; trans ; sym ; ≢-sym ; cong ; inspect ; [_])
+  using (refl ; _≢_ ; trans ; sym ; cong ; inspect ; [_])
 
-open import Relation.Nullary using (Dec ; _because_ ; ofʸ ; ofⁿ ; yes ; no ; ¬_)
+open import Relation.Nullary using (¬_)
 open import Relation.Nullary.Negation using (contradiction)
 open import Relation.Unary using (Pred)
 
