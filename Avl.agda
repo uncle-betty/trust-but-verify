@@ -36,7 +36,7 @@ open import Data.Tree.AVL.Indexed sto
     lookup ; insertWith ; joinˡ⁺ ; joinʳ⁺
   ) renaming ([_] to [_]ᴱ)
 
-open import Function using (id ; _∘_)
+open import Function using (id ; _∘_ ; _$_)
 
 open import Relation.Binary using (Transitive ; tri< ; tri≈ ; tri>)
 
@@ -52,7 +52,7 @@ open import Relation.Unary using (Pred)
 
 open import Tactic.MonoidSolver using (solve)
 
-open STO sto using () renaming (_<_ to <ᴷ ; trans to <-transᴷ ; compare to compᴷ ; <-resp-≈ to <-resp-≡ᴷ)
+open STO sto using () renaming (_<_ to <ᴷ ; trans to <-transᴷ ; compare to compᴷ ; <-resp-≈ to <-resp-≡ᴷ ; irrefl to <-irreflᴷ)
 open STO.Eq sto using () renaming (sym to symᴷ ; trans to transᴷ ; _≈_ to _≡ᴷ_ ; refl to reflexᴷ)
 
 Key = STO.Carrier sto
@@ -83,13 +83,6 @@ lo<pi {l} (node _ (node _ tˡ tʳ _) _ _) = trans⁺ l (lo<up tˡ) (lo<up tʳ)
 flat : ∀ {l u h} → Tree V l u h → List (K& V)
 flat (leaf _)          = []
 flat (node kv tˡ tʳ _) = flat tˡ ++ kv ∷ flat tʳ
-
-data <ᴸ : K& V → K& V → Set (ℓ₁ ⊔ ℓ₃) where
-  l<l : ∀ {k₁ k₂} → [ k₁ ]ᴱ <⁺ [ k₂ ]ᴱ → (v₁ : Val k₁) → (v₂ : Val k₂) → <ᴸ (k₁ , v₁) (k₂ , v₂)
-
-transᴸ : Transitive <ᴸ
-transᴸ {k₁ , v₁} {k₂ , v₂} {k₃ , v₃} (l<l x<y v₁ v₂) (l<l y<z v₂ v₃) =
-  l<l (trans⁺ [ k₁ ]ᴱ x<y y<z) v₁ v₃
 
 Lo : Key⁺ → Pred (K& V) (ℓ₁ ⊔ ℓ₃)
 Lo l (k , _) = l <⁺ [ k ]ᴱ
@@ -126,6 +119,14 @@ all-up t@(node (k′ , v′) tˡ tʳ _) =
 ∷ᴸ⁺ {xs = x ∷ xs} v (l ∷ᴸ ls) (a ∷ᴬ as)  = l<l a v (proj₂ x) ∷ᴸ l ∷ᴸ ls
 -}
 
+{-
+data <ᴸ : K& V → K& V → Set (ℓ₁ ⊔ ℓ₃) where
+  l<l : ∀ {k₁ k₂} → [ k₁ ]ᴱ <⁺ [ k₂ ]ᴱ → (v₁ : Val k₁) → (v₂ : Val k₂) → <ᴸ (k₁ , v₁) (k₂ , v₂)
+
+transᴸ : Transitive <ᴸ
+transᴸ {k₁ , v₁} {k₂ , v₂} {k₃ , v₃} (l<l x<y v₁ v₂) (l<l y<z v₂ v₃) =
+  l<l (trans⁺ [ k₁ ]ᴱ x<y y<z) v₁ v₃
+
 ++ᴸ : ∀ {k xs ys} → Linked <ᴸ xs → Linked <ᴸ ys → All (Up [ k ]ᴱ) xs → All (Lo [ k ]ᴱ) ys →
   (v : Val k) → Linked <ᴸ (xs ++ (k , v) ∷ ys)
 
@@ -161,6 +162,7 @@ ordered (node (k′ , v′) tˡ tʳ _) =
   let x₁ = ordered tˡ in
   let x₂ = ordered tʳ in
   ++ᴸ x₁ x₂ (all-up tˡ) (all-lo tʳ) v′
+-}
 
 get : (k : Key) → List (K& V) → Maybe (Val k)
 get k [] = nothing
@@ -174,14 +176,75 @@ put : (k : Key) → (f : Maybe (Val k) → Val k) → (l : List (K& V)) → List
 put k f [] = (k , f nothing) ∷ []
 
 put k f ((k′ , v′) ∷ kvs) with compᴷ k k′
-... | tri< _ _  _ = (k , f nothing) ∷ (k′ , v′) ∷ kvs
-... | tri≈ _ p₂ _ = (k′ , V≈ p₂ (f (just (V≈ (symᴷ p₂) v′)))) ∷ kvs
-... | tri> _ _  _ = (k′ , v′) ∷ (put k f kvs)
+... | tri< _ _ _ = (k , f nothing) ∷ (k′ , v′) ∷ kvs
+... | tri≈ _ p _ = (k′ , V≈ p (f (just (V≈ (symᴷ p) v′)))) ∷ kvs
+... | tri> _ _ _ = (k′ , v′) ∷ (put k f kvs)
+
+failˡ : ∀ {u} → (k : Key) → (kvs : List (K& V)) → All (Up [ u ]ᴱ) kvs → ¬ <ᴷ k u →
+  get k kvs ≡ nothing
+
+failˡ _ [] []ᴬ _ = refl
+
+failˡ k ((k′ , v′) ∷ kvs′) (a ∷ᴬ as) ¬k<u with compᴷ k′ k
+... | tri< _ _ _ = failˡ k kvs′ as ¬k<u
+... | tri≈ _ p _ = contradiction (proj₂ <-resp-≡ᴷ p (strip-<⁺ a)) ¬k<u
+... | tri> _ _ _ = refl
+
+{-
+failʳ : ∀ {l} → (k : Key) → (kvs : List (K& V)) → All (Lo [ l ]ᴱ) kvs → ¬ <ᴷ l k →
+  get k kvs ≡ nothing
+
+failʳ _ [] []ᴬ _ = refl
+
+failʳ k ((k′ , v′) ∷ kvs′) (a ∷ᴬ as) ¬l<k with compᴷ k′ k
+... | tri< _ _ _ = failʳ k kvs′ as ¬l<k
+... | tri≈ _ p _ = contradiction (proj₁ <-resp-≡ᴷ p (strip-<⁺ a)) ¬l<k
+... | tri> _ _ _ = refl
+-}
+
+get₂ : (k : Key) → List (K& V) → List (K& V) → Maybe (Val k)
+get₂ k xs ys with get k xs
+... | just v′ = just v′
+... | nothing = get k ys
+
+get-split : (k : Key) → (k″ : Key) → (v″ : Val k″) → (kvs kvs″ : List (K& V)) → All (Up [ k″ ]ᴱ) kvs →
+  get k (kvs ++ (k″ , v″) ∷ kvs″) ≡ get₂ k kvs ((k″ , v″) ∷ kvs″)
+
+get-split k k″ v″ [] kvs″ as = refl
+
+get-split k k″ v″ ((k′ , v′) ∷ kvs′) kvs″ (a′ ∷ᴬ as′) with compᴷ k′ k
+... | tri< _ _ _  = get-split k k″ v″ kvs′ kvs″ as′
+... | tri≈ _ _ _  = refl
+
+... | tri> p₁ _  p₂ with compᴷ k″ k
+... | tri< p₃ _  _  = contradiction (<-transᴷ (<-transᴷ p₂ (strip-<⁺ a′)) p₃) (<-irreflᴷ reflexᴷ)
+... | tri≈ _  p₄ _  = contradiction (proj₁ <-resp-≡ᴷ p₄ (strip-<⁺ a′)) p₁
+... | tri> _  _  _  = refl
 
 lookup≡get : ∀ {l u h} → (k : Key) → (t : Tree V l u h) → (l<k<u : l < k < u) →
   lookup k t l<k<u ≡ get k (flat t)
 
-lookup≡get k t l<k<u = {!!}
+lookup≡get k (leaf l<u) l<k<u = refl
+
+lookup≡get k (node (k′ , v′) tˡ tʳ _) l<k<u
+  rewrite get-split k k′ v′ (flat tˡ) (flat tʳ) (all-up tˡ)
+  with compᴷ k′ k | inspect (compᴷ k′) k
+
+lookup≡get k (node (k′ , v′) tˡ tʳ _) (l<k , k<u) | tri< p₁ _  p₂ | [ eq₁ ]
+  rewrite failˡ k (flat tˡ) (all-up tˡ) p₂
+        | eq₁
+  = lookup≡get k tʳ ([ p₁ ]ᴿ , k<u)
+
+lookup≡get k (node (k′ , v′) tˡ tʳ _) (l<k , k<u) | tri≈ _  _  p₁ | [ eq₁ ]
+  rewrite failˡ k (flat tˡ) (all-up tˡ) p₁
+        | eq₁
+  = refl
+
+lookup≡get k (node (k′ , v′) tˡ tʳ _) (l<k , k<u) | tri> _  _  p₁ | [ eq₁ ]
+  rewrite lookup≡get k tˡ (l<k , [ p₁ ]ᴿ)
+  with get k (flat tˡ)
+... | just v  = refl
+... | nothing rewrite eq₁ = refl
 
 insert≡put : ∀ {l u h} → (k : Key) → (f : Maybe (Val k) → Val k) → (t : Tree V l u h) →
   (l<k<u : l < k < u) → flat (proj₂ (insertWith k f t l<k<u)) ≡ put k f (flat t)
