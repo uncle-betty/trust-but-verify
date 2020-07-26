@@ -3,7 +3,7 @@ open import Relation.Binary.Bundles using () renaming (StrictTotalOrder to STO)
 open import Data.Tree.AVL.Indexed using (Value)
 open import Relation.Binary.PropositionalEquality using (_≡_ ; subst)
 
-module Avl
+module AVL
   {ℓ₁ ℓ₂ ℓ₃ ℓ₄ : Level}
   (sto : STO ℓ₁ ℓ₂ ℓ₃)
   (V : Value sto ℓ₄)
