@@ -1,7 +1,7 @@
 open import Agda.Primitive using (Level)
 open import Relation.Binary.Bundles using () renaming (StrictTotalOrder to STO)
 open import Data.Tree.AVL.Indexed using (Value)
-open import Relation.Binary.PropositionalEquality using (_≡_ ; subst)
+open import Relation.Binary.PropositionalEquality using (_≡_)
 
 module AVL
   {ℓ₁ ℓ₂ ℓ₃ ℓ₄ : Level}
@@ -52,8 +52,13 @@ open import Relation.Unary using (Pred)
 
 open import Tactic.MonoidSolver using (solve)
 
-open STO sto using () renaming (_<_ to _<ᴷ_ ; trans to <-transᴷ ; compare to compᴷ ; <-resp-≈ to <-resp-≡ᴷ ; irrefl to <-irreflᴷ)
-open STO.Eq sto using () renaming (sym to symᴷ ; trans to transᴷ ; _≈_ to _≡ᴷ_ ; refl to reflexᴷ)
+open STO sto
+  using () renaming (
+    _<_ to _<ᴷ_ ; trans to <-transᴷ ; <-resp-≈ to <-resp-≡ᴷ ; irrefl to <-irreflᴷ ;
+    compare to compᴷ
+  )
+
+open STO.Eq sto using () renaming (_≈_ to _≡ᴷ_ ; refl to reflexᴷ ; sym to symᴷ ; trans to transᴷ)
 
 Key = STO.Carrier sto
 Val = Value.family {ℓ₁} {ℓ₂} {ℓ₃} {sto} {ℓ₄} V
@@ -143,8 +148,8 @@ get₂ k xs ys with get k xs
 ... | just v′ = just v′
 ... | nothing = get k ys
 
-get-split : (k : Key) → (k″ : Key) → (v″ : Val k″) → (kvs kvs″ : List (K& V)) → All (Up [ k″ ]ᴱ) kvs →
-  get k (kvs ++ (k″ , v″) ∷ kvs″) ≡ get₂ k kvs ((k″ , v″) ∷ kvs″)
+get-split : (k : Key) → (k″ : Key) → (v″ : Val k″) → (kvs kvs″ : List (K& V)) →
+  All (Up [ k″ ]ᴱ) kvs → get k (kvs ++ (k″ , v″) ∷ kvs″) ≡ get₂ k kvs ((k″ , v″) ∷ kvs″)
 
 get-split k k″ v″ [] kvs″ as = refl
 
@@ -171,7 +176,8 @@ join-pat₄ as bs cs ds = solve (++-monoid (K& V))
 
 flat-joinˡ⁺ :
   ∀ {l u hˡ hʳ h} k v i → (tˡ : Tree V _ _ _) → ∀ tʳ b →
-  flat (proj₂ (joinˡ⁺ {l = l} {u} {hˡ} {hʳ} {h} (k , v) (i , tˡ) tʳ b)) ≡ flat tˡ ++ ((k , v) ∷ flat tʳ)
+  flat (proj₂ (joinˡ⁺ {l = l} {u} {hˡ} {hʳ} {h} (k , v) (i , tˡ) tʳ b)) ≡
+  flat tˡ ++ ((k , v) ∷ flat tʳ)
 
 flat-joinˡ⁺ k₆ v₆ 1# (node (k₂ , v₂) t₁ (node (k₄ , v₄) t₃ t₅ b) ∼+) t₇ ∼- =
   join-pat₁ (flat t₁) ((k₂ , v₂) ∷ flat t₃) ((k₄ , v₄) ∷ flat t₅) ((k₆ , v₆) ∷ flat t₇)
@@ -201,7 +207,8 @@ flat-joinˡ⁺ k₂ v₂ 0# t₁                                      t₃ b  = 
 
 flat-joinʳ⁺ :
   ∀ {l u hˡ hʳ h} k v tˡ i → (tʳ : Tree V _ _ _) → ∀ b →
-  flat (proj₂ (joinʳ⁺ {l = l} {u} {hˡ} {hʳ} {h} (k , v) tˡ (i , tʳ) b)) ≡ flat tˡ ++ ((k , v) ∷ flat tʳ)
+  flat (proj₂ (joinʳ⁺ {l = l} {u} {hˡ} {hʳ} {h} (k , v) tˡ (i , tʳ) b)) ≡
+  flat tˡ ++ ((k , v) ∷ flat tʳ)
 
 flat-joinʳ⁺ k₂ v₂ t₁ 1# (node (k₆ , v₆) (node (k₄ , v₄) t₃ t₅ b)    t₇ ∼-) ∼+ =
   join-pat₄ (flat t₁) ((k₂ , v₂) ∷ flat t₃) ((k₄ , v₄) ∷ flat t₅) ((k₆ , v₆) ∷ flat t₇)
