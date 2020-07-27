@@ -5,26 +5,26 @@ open import Agda.Primitive using (Level) renaming (lzero to 0ℓ ; lsuc to +ℓ)
 open import Data.Bool using (Bool ; true ; false ; _∧_ ; _∨_ ; not ; T ; if_then_else_)
 open import Data.Bool.Properties using (∨-zeroʳ)
 open import Data.Empty using (⊥ ; ⊥-elim)
-open import Data.List using (List ; [] ; _∷_ ; _++_ ; map ; filter)
-open import Data.Maybe using (Maybe ; just ; nothing)
-open import Data.Nat using (ℕ ; _≟_ ; _<_)
+open import Data.List using (List ; [] ; _∷_ ; _++_ ; map)
+open import Data.Maybe using (just ; nothing)
+open import Data.Nat using (ℕ ; _<_)
 open import Data.Nat.Properties using (<-trans) renaming (<-strictTotalOrder to <-STO)
-open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂ ; Σ)
+open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂)
 open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Unit using (⊤ ; tt)
 
-open import Function using (_∘_ ; id ; _∋_)
+open import Function using (_∘_ ; id)
 
 open import Relation.Binary
   using (Transitive ; Trichotomous ; tri< ; tri≈ ; tri>)
   renaming (StrictTotalOrder to STO; IsStrictTotalOrder to ISTO)
 
 open import Relation.Binary.PropositionalEquality
-  using (_≡_ ; _≢_ ; refl ; sym ; ≢-sym ; cong ; cong₂ ; subst ; trans ; inspect ; [_])
+  using (_≡_ ; _≢_ ; refl ; sym ; ≢-sym ; cong ; subst ; inspect ; [_])
 
 open import Relation.Binary.PropositionalEquality.Properties using (isEquivalence)
 open import Relation.Nullary using (Dec ; yes ; no ; _because_ ; does ; proof ; ofʸ ; ofⁿ ; ¬_)
-open import Relation.Nullary.Negation using (contradiction ; contraposition ; ¬?)
+open import Relation.Nullary.Negation using (contradiction)
 
 data Oper : Set
 

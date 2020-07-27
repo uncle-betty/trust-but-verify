@@ -1,21 +1,18 @@
 module SMT where
 
-open import Agda.Primitive using (Level ; lzero ; lsuc)
 open import Data.Bool using (Bool ; true ; false ; _∧_ ; _∨_ ; not ; T ; if_then_else_)
 open import Data.Empty using (⊥)
-open import Data.List using (List ; [] ; _∷_ ; _++_ ; map ; filter)
-open import Data.Maybe using (Maybe ; just ; nothing)
-open import Data.Nat using (ℕ ; _≟_ ; _<_)
-open import Data.Nat.Properties using (<-trans) renaming (<-strictTotalOrder to <-STO)
+open import Data.List using ([])
 open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂)
 open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Unit using (⊤ ; tt)
-open import Function using (_∘_ ; id ; _∋_)
-open import Relation.Binary using (Transitive ; Trichotomous ; tri< ; tri≈ ; tri>) renaming (StrictTotalOrder to STO; IsStrictTotalOrder to ISTO)
-open import Relation.Binary.PropositionalEquality using (_≡_ ; _≢_ ; refl ; sym ; ≢-sym ; cong ; cong₂ ; subst ; trans ; inspect ; [_])
-open import Relation.Binary.PropositionalEquality.Properties using (isEquivalence)
-open import Relation.Nullary using (Dec ; yes ; no ; _because_ ; does ; proof ; ofʸ ; ofⁿ ; ¬_)
-open import Relation.Nullary.Negation using (contradiction ; contraposition ; ¬?)
+
+open import Function using (id ; _∘_ ; _$_ ; _∋_)
+
+open import Relation.Binary.PropositionalEquality using (_≡_ ; refl ; sym ; inspect ; [_])
+
+open import Relation.Nullary using (¬_)
+open import Relation.Nullary.Negation using (contradiction)
 
 open import SAT using (Var ; var ; evalᵛ ; Holdsᶜ)
 
