@@ -5,12 +5,12 @@ open import Relation.Binary.PropositionalEquality using (_≡_)
 
 module AVL
   {ℓ₁ ℓ₂ ℓ₃ ℓ₄ : Level}
-  (sto : STO ℓ₁ ℓ₂ ℓ₃)
-  (V : Value sto ℓ₄)
-  (equal′ : ∀ {x y} → STO._≈_ sto x y → x ≡ y)
+  (O : STO ℓ₁ ℓ₂ ℓ₃)
+  (V : Value O ℓ₄)
+  (equal′ : ∀ {x y} → STO._≈_ O x y → x ≡ y)
   (reduce′ : ∀ {k} p →
-    (v : Value.family {ℓ₁} {ℓ₂} {ℓ₃} {sto} {ℓ₄} V k) →
-    Value.respects {ℓ₁} {ℓ₂} {ℓ₃} {sto} {ℓ₄} V p v ≡ v) where
+    (v : Value.family {ℓ₁} {ℓ₂} {ℓ₃} {O} {ℓ₄} V k) →
+    Value.respects {ℓ₁} {ℓ₂} {ℓ₃} {O} {ℓ₄} V p v ≡ v) where
 
 open import Agda.Primitive using (_⊔_) renaming (lzero to 0ℓ)
 
@@ -23,7 +23,7 @@ open import Data.Nat using (suc)
 open import Data.Product using (_,_ ; proj₁ ; proj₂)
 open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 
-open import Data.Tree.AVL.Indexed sto
+open import Data.Tree.AVL.Indexed O
   using (
     Key⁺ ;  K&_ ;
     _<⁺_ ; _<_<_ ; [_]ᴿ ; ⊥⁺ ; ⊤⁺ ; ⊥⁺<[_]<⊤⁺ ; trans⁺ ;
@@ -35,7 +35,7 @@ open import Function using (id ; _∘_ ; _$_ ; const)
 
 open import Relation.Binary using (tri< ; tri≈ ; tri>)
 
-open import Relation.Binary.Construct.Add.Extrema.Strict (STO._<_ sto)
+open import Relation.Binary.Construct.Add.Extrema.Strict (STO._<_ O)
   using () renaming ([<]-injective to strip-<⁺)
 
 open import Relation.Binary.PropositionalEquality
@@ -47,17 +47,17 @@ open import Relation.Unary using (Pred)
 
 open import Tactic.MonoidSolver using (solve)
 
-open STO sto
+open STO O
   using () renaming (
     _<_ to _<ᴷ_ ; trans to <-transᴷ ; <-resp-≈ to <-resp-≡ᴷ ; irrefl to <-irreflᴷ ;
     compare to compᴷ
   )
 
-open STO.Eq sto using () renaming (_≈_ to _≡ᴷ_ ; refl to reflexᴷ ; sym to symᴷ ; trans to transᴷ)
+open STO.Eq O using () renaming (_≈_ to _≡ᴷ_ ; refl to reflexᴷ ; sym to symᴷ ; trans to transᴷ)
 
-Key = STO.Carrier sto
-Val = Value.family {ℓ₁} {ℓ₂} {ℓ₃} {sto} {ℓ₄} V
-V≈  = Value.respects {ℓ₁} {ℓ₂} {ℓ₃} {sto} {ℓ₄} V
+Key = STO.Carrier O
+Val = Value.family {ℓ₁} {ℓ₂} {ℓ₃} {O} {ℓ₄} V
+V≈  = Value.respects {ℓ₁} {ℓ₂} {ℓ₃} {O} {ℓ₄} V
 
 equal : ∀ {x y} → x ≡ᴷ y → x ≡ y
 equal = equal′
@@ -400,7 +400,7 @@ lookup-other {k} {k′} f t k′≢k
         | insert≡put k f t ⊥⁺<[ k ]<⊤⁺
   = get-other f (flat t) k′≢k
 
-import Data.Tree.AVL sto as A using (Tree ; tree ; insert ; lookup)
+import Data.Tree.AVL O as A using (Tree ; tree ; insert ; lookup)
 
 avl-insed : (k : Key) → (v : Val k) → (t : A.Tree V) → (A.lookup k (A.insert k v t)) ≡ just v
 avl-insed k v (A.tree t′) = lookup-insed (const v) t′
