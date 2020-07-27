@@ -1,4 +1,8 @@
-open import SAT using (var ; pos ; neg ; Holdsᶜ ; expand ; resolve-r ; resolve-r⁺ ; resolve-q ; resolve-q⁺ ; simpl-mp ; from⁺ ; fromᶜ)
+open import SAT
+  using (
+    var ; pos ; neg ; Holdsᶜ ; expand ; from⁺ ; fromᶜ ;
+    resolve-r ; resolve-r⁺ ; resolve-q ; resolve-q⁺ ; simpl-mp
+  )
 
 module Test where
 
