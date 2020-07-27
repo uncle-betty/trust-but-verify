@@ -28,20 +28,25 @@ open import Relation.Nullary.Negation using (contradiction ; contraposition ; ¬
 
 data Oper : Set
 
+-- LFSC: var
 data Var : Set where
   var : ℕ → Var
 
+-- LFSC: lit, pos, neg
 data Lit : Set where
   pos : Var → Lit
   neg : Var → Lit
 
+-- LFSC: clause, cln, clc
 Clause = List Lit
 Clause⁺ = List (Lit ⊎ Oper)
 
+-- LFSC: concat_cl, clr
 data Oper where
   join : Clause⁺ → Oper
   skip : Lit → Oper
 
+-- LFSC: cnf, cnfn, cnfc
 CNF = List Clause
 
 ℕ-comp = ISTO.compare (STO.isStrictTotalOrder <-STO)
@@ -161,7 +166,7 @@ set-add-com l₁ l₂ s l′ with dec-≡ˡ l₁ l₂
         | set-insed l₁ (insert l₂ s)
         | set-other l₁ l₂ (insert l₁ s) p₁
         | set-insed l₁ s
-        = refl
+  = refl
 
 ... | no  p₂ with dec-≡ˡ l′ l₂
 
@@ -170,14 +175,14 @@ set-add-com l₁ l₂ s l′ with dec-≡ˡ l₁ l₂
         | set-insed l₂ (insert l₁ s)
         | set-other l₂ l₁ (insert l₂ s) (≢-sym p₁)
         | set-insed l₂ s
-        = refl
+  = refl
 
 ... | no  p₃
   rewrite set-other l′ l₁ (insert l₂ s) p₂
         | set-other l′ l₂ (insert l₁ s) p₃
         | set-other l′ l₂ s p₃
         | set-other l′ l₁ s p₂
-        = refl
+  = refl
 
 not-t⇒f : ∀ {x} → not x ≡ true → x ≡ false
 not-t⇒f {true}  ()
@@ -314,6 +319,7 @@ eval⁺-add-com : ∀ c l₁ l₂ s → eval⁺ c (insert l₁ (insert l₂ s)) 
 eval⁺-add-com c l₁ l₂ s =
   eval⁺-add-≡ {insert l₁ (insert l₂ s)} {insert l₂ (insert l₁ s)} c (set-add-com l₁ l₂ s)
 
+-- LFSC: lit_flip
 flip : Lit → Lit
 flip (pos v) = neg v
 flip (neg v) = pos v
@@ -338,7 +344,7 @@ resolve {l} {inj₁ l′ ∷ xs} {s} h₁ h₂ | yes p
         | set-insed (flip l) s
         | t≡flip-f {l} h₁
         | ite-same (flip l ∈? s) (eval⁺ xs s)
-        = resolve {l} {xs} {s} h₁ h₂
+  = resolve {l} {xs} {s} h₁ h₂
 
 resolve {l} {inj₁ l′ ∷ xs} {s} h₁ h₂ | no p rewrite set-other l′ (flip l) s p with l′ ∈? s
 ... | true  = resolve {l} {xs} {s} h₁ h₂
@@ -353,12 +359,14 @@ resolve {l} {inj₂ (join c′) ∷ xs} {s} h₁ h₂ with eval⁺ c′ s | insp
 resolve {l} {inj₂ (skip l′) ∷ xs} {s} h₁ h₂
   rewrite eval⁺-add-com xs l′ (flip l) s = resolve {l} {xs} {insert l′ s} h₁ h₂
 
+-- LFSC: holds
 data Holdsᶜ : Clause → Set where
   holdsᶜ : (c : Clause) → (p : evalᶜ c ≡ true) → Holdsᶜ c
 
 data Holds⁺ : Clause⁺ → Set where
   holds⁺ : (c : Clause⁺) → (p : eval⁺ c empty ≡ true) → Holds⁺ c
 
+-- LFSC: R
 resolve-r : ∀ {c₁ c₂} → Holds⁺ c₁ → Holds⁺ c₂ → (v : Var) →
   Holds⁺ (inj₂ (join (inj₂ (skip (pos v)) ∷ c₁)) ∷ inj₂ (skip (neg v)) ∷ c₂)
 
@@ -372,10 +380,11 @@ resolve-r (holds⁺ c₁ p₁) (holds⁺ c₂ p₂) v = holds⁺ _ (help {c₁} 
   help {c₁} {c₂} h₁ h₂ v with evalᵛ v | inspect evalᵛ v
   ... | true | [ eq ]
     rewrite resolve {pos v} {c₂} {empty} eq h₂
-          = ∨-zeroʳ (eval⁺ c₁ (insert (pos v) empty))
+    = ∨-zeroʳ (eval⁺ c₁ (insert (pos v) empty))
 
   ... | false | [ eq ] rewrite resolve {neg v} {c₁} {empty} (f⇒not-t eq) h₁ = refl
 
+-- LFSC: Q
 resolve-q : ∀ {c₁ c₂} → Holds⁺ c₁ → Holds⁺ c₂ → (v : Var) →
   Holds⁺ (inj₂ (join (inj₂ (skip (neg v)) ∷ c₁)) ∷ inj₂ (skip (pos v)) ∷ c₂)
 
@@ -391,11 +400,12 @@ resolve-q (holds⁺ c₁ p₁) (holds⁺ c₂ p₂) v = holds⁺ _ (help {c₁} 
 
   ... | false | [ eq ]
     rewrite resolve {neg v} {c₂} {empty} (f⇒not-t eq) h₂
-          = ∨-zeroʳ (eval⁺ c₁ (insert (neg v) empty))
+    = ∨-zeroʳ (eval⁺ c₁ (insert (neg v) empty))
 
 compl : Clause → Clause⁺
 compl = map inj₁
 
+-- LFSC: simplify_clause (++ is clause_append)
 simpl : Clause⁺ → ⟨Set⟩ → Clause
 simpl []                   _ = []
 simpl (inj₁ l        ∷ xs) s = if l ∈? s then simpl xs s else l ∷ simpl xs s
@@ -435,9 +445,11 @@ simpl-sound {inj₂ (join c′) ∷ xs} {s} h with eval⁺ c′ s | inspect (eva
 
 simpl-sound {inj₂ (skip l′) ∷ xs} {s} h = simpl-sound {xs} {insert l′ s} h
 
+-- LFSC: satlem_simplify
 simpl-mp : ∀ {c₁ c₂} → Holds⁺ c₁ → (Holdsᶜ (simpl c₁ empty) → Holdsᶜ c₂) → Holdsᶜ c₂
 simpl-mp (holds⁺ c₁ p₁) fn = fn (holdsᶜ (simpl c₁ empty) (simpl-sound {c₁} {empty} p₁))
 
+-- LFSC: satlem
 mp : ∀ {c₁ c₂} → Holdsᶜ c₁ → (Holdsᶜ c₁ → Holdsᶜ c₂) → Holdsᶜ c₂
 mp h₁ fn = fn h₁
 
@@ -460,6 +472,7 @@ resolve-q⁺ : ∀ {c₁ c₂} → {X₁ X₂ : Set} → {{From X₁ c₁}} → 
 
 resolve-q⁺ {{from f₁}} {{from f₂}} x₁ x₂ v = resolve-q (f₁ x₁) (f₂ x₂) v
 
+-- LFSC: clause_dedup
 dedup : Clause → ⟨Set⟩ → Clause
 dedup []       _ = []
 dedup (l ∷ ls) s = if l ∈? s then dedup ls s else l ∷ dedup ls (insert l s)
@@ -471,7 +484,7 @@ dedup-≡ {s₁} {s₂} (l′ ∷ ls) p
   rewrite p l′
         | dedup-≡ {s₁} {s₂} ls p
         | dedup-≡ {insert l′ s₁} {insert l′ s₂} ls (set-add-≡ {s₁} {s₂} l′ p)
-        = refl
+  = refl
 
 dedup-add-com : ∀ c l₁ l₂ s → dedup c (insert l₁ (insert l₂ s)) ≡ dedup c (insert l₂ (insert l₁ s))
 dedup-add-com c l₁ l₂ s =
@@ -500,6 +513,8 @@ dedup-sound {pos v′ ∷ ls} h with evalᵛ v′ | inspect evalᵛ v′
 dedup-sound {neg v′ ∷ ls} h with evalᵛ v′ | inspect evalᵛ v′
 ... | true  | [ eq ] = dedup-add-f-≡ {neg v′} {ls} {empty} (t⇒not-f eq) (dedup-sound {ls} h)
 ... | false | _      = refl
+
+-- XXX - add cnf_holds, cnfn-proof, cnfc_proof
 
 {-
 --- SMT ---
