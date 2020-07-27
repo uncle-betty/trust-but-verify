@@ -31,7 +31,7 @@ open import Data.Tree.AVL.Indexed sto
     lookup ; insertWith ; joinˡ⁺ ; joinʳ⁺
   ) renaming ([_] to [_]ᴱ)
 
-open import Function using (id ; _∘_ ; _$_)
+open import Function using (id ; _∘_ ; _$_ ; const)
 
 open import Relation.Binary using (tri< ; tri≈ ; tri>)
 
@@ -399,3 +399,13 @@ lookup-other {k} {k′} f t k′≢k
         | lookup≡get k′ (proj₂ (insertWith k f t ⊥⁺<[ k ]<⊤⁺)) ⊥⁺<[ k′ ]<⊤⁺
         | insert≡put k f t ⊥⁺<[ k ]<⊤⁺
   = get-other f (flat t) k′≢k
+
+import Data.Tree.AVL sto as A using (Tree ; tree ; insert ; lookup)
+
+avl-insed : (k : Key) → (v : Val k) → (t : A.Tree V) → (A.lookup k (A.insert k v t)) ≡ just v
+avl-insed k v (A.tree t′) = lookup-insed (const v) t′
+
+avl-other : (k′ k : Key) → (v : Val k) → (t : A.Tree V) → ¬ k′ ≡ᴷ k →
+  (A.lookup k′ (A.insert k v t)) ≡ A.lookup k′ t
+
+avl-other k′ k v (A.tree t′) k′≢k = lookup-other (const v) t′ k′≢k

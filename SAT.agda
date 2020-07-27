@@ -1,6 +1,6 @@
 module SAT where
 
-open import Agda.Primitive using (Level ; lzero ; lsuc)
+open import Agda.Primitive using (Level) renaming (lzero to 0ℓ ; lsuc to +ℓ)
 open import Data.Bool using (Bool ; true ; false ; _∧_ ; _∨_ ; not ; T ; if_then_else_)
 open import Data.Bool.Properties using (∨-zeroʳ)
 open import Data.Empty using (⊥ ; ⊥-elim)
@@ -59,14 +59,18 @@ var-comp (var m) (var n) with ℕ-comp m n
 var-<-ISTO : ISTO _≡_ Var-<
 var-<-ISTO = record { isEquivalence = isEquivalence ; trans = var-<-trans ; compare = var-comp }
 
-var-<-STO : STO lzero lzero  lzero
+var-<-STO : STO 0ℓ 0ℓ 0ℓ
 var-<-STO = record { Carrier = Var ; _≈_ = _≡_ ; _<_ = Var-< ; isStrictTotalOrder = var-<-ISTO }
 
 import Data.Tree.AVL.Map var-<-STO as M using (Map ; empty ; insert ; lookup)
+import Data.Tree.AVL.Indexed var-<-STO as IM using (const)
+import AVL var-<-STO (IM.const Bool) id (λ _ _ → refl) as AM using (avl-insed ; avl-other)
 
-postulate
-  map-insed : ∀ v    (b : Bool) m →          (M.lookup v  (M.insert v b m)) ≡ just b
-  map-other : ∀ v′ v (b : Bool) m → v′ ≢ v → (M.lookup v′ (M.insert v b m)) ≡ M.lookup v′ m
+map-insed : ∀ v (b : Bool) m → (M.lookup v (M.insert v b m)) ≡ just b
+map-insed v b m = AM.avl-insed v b m
+
+map-other : ∀ v′ v (b : Bool) m → v′ ≢ v → (M.lookup v′ (M.insert v b m)) ≡ M.lookup v′ m
+map-other v′ v b m = AM.avl-other v′ v b m
 
 data Lit-< : Lit → Lit → Set where
   n<p : ∀ {x y} →             Lit-< (neg x) (pos y)
@@ -108,7 +112,7 @@ lit-comp (neg x) (neg y) with var-comp x y
 lit-<-ISTO : ISTO _≡_ Lit-<
 lit-<-ISTO = record { isEquivalence = isEquivalence ; trans = lit-<-trans ; compare = lit-comp }
 
-lit-<-STO : STO lzero lzero  lzero
+lit-<-STO : STO 0ℓ 0ℓ 0ℓ
 lit-<-STO = record { Carrier = Lit ; _≈_ = _≡_ ; _<_ = Lit-< ; isStrictTotalOrder = lit-<-ISTO }
 
 dec-≡ˡ : (l₁ l₂ : Lit) → Dec (l₁ ≡ l₂)
@@ -118,12 +122,17 @@ dec-≡ˡ l₁ l₂ with lit-comp l₁ l₂
 ... | tri> _ p _ = false because ofⁿ p
 
 open import Data.Tree.AVL.Sets lit-<-STO using (⟨Set⟩ ; empty ; insert ; _∈?_)
+import Data.Tree.AVL.Indexed lit-<-STO as IS using (const)
+import AVL lit-<-STO (IS.const ⊤) id (λ _ _ → refl) as AS using (avl-insed ; avl-other)
+
+set-insed : ∀ l s → (l ∈? (insert l s)) ≡ true
+set-insed l s rewrite AS.avl-insed l tt s = refl
+
+set-other : ∀ l′ l s → l′ ≢ l → (l′ ∈? (insert l s)) ≡ (l′ ∈? s)
+set-other l′ l s l′≢l rewrite AS.avl-other l′ l tt s l′≢l = refl
 
 postulate
   envir : M.Map Bool
-
-  set-insed : ∀ l    s →          (l  ∈? (insert l s)) ≡ true
-  set-other : ∀ l′ l s → l′ ≢ l → (l′ ∈? (insert l s)) ≡ (l′ ∈? s)
 
 set-≡ : ∀ s₁ s₂ → Set
 set-≡ s₁ s₂ = ∀ l′ → (l′ ∈? s₁) ≡ (l′ ∈? s₂)
