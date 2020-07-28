@@ -5,20 +5,19 @@ open import Function using (id ; _$_)
 open import Relation.Binary.PropositionalEquality using (refl)
 
 open import Env using (var ; ε ; assignᵛ)
-open import SMT as S using (trueᶠ ; falseᶠ ; evalᶠ)
+open import SMT as S using (trueᶠ ; falseᶠ ; notᶠ ; evalᶠ ; trustᶠ)
 
 env =
-  assignᵛ (var 0) (evalᶠ falseᶠ) $
-  assignᵛ (var 1) (evalᶠ trueᶠ) $
+  assignᵛ (var 1) (evalᶠ falseᶠ) $
   ε
 
 open import SAT env
   using (
     pos ; neg ; Holdsᶜ ; expand ; from⁺ ; fromᶜ ;
-    resolve-r ; resolve-r⁺ ; resolve-q ; resolve-q⁺ ; simpl-mp
+    resolve-r ; resolve-r⁺ ; resolve-q ; resolve-q⁺ ; mp ; simpl-mp
   )
 
-open S.Rules env using (Atom ; atom ; decl-atom)
+open S.Rules env using (Atom ; atom ; decl-atom ; mpᶠ ; assum ; assum-¬ ; clausi-f ; contra)
 
 -- SAT test #1
 
@@ -50,7 +49,14 @@ sat₂ a b r =
 -- SMT test #1
 
 instance
-  _ = atom (var 0) falseᶠ refl
-  _ = atom (var 1) trueᶠ refl
+  _ = atom (var 1) falseᶠ refl
 
-foo = decl-atom trueᶠ λ v₁ → λ a₁ → {!!}
+smt₁ : Holdsᶜ []
+smt₁ =
+  let let₁ = falseᶠ in
+  mpᶠ (trustᶠ falseᶠ) λ pa₁ →
+  mpᶠ (trustᶠ (notᶠ let₁)) λ pa₂ →
+  decl-atom let₁ λ { a₁@(atom v₁ _ _) →
+  mp (assum a₁ λ l₃ → clausi-f (contra l₃ pa₂)) λ pb₁ →
+  mp (assum-¬ a₁ λ l₂ → clausi-f (contra pa₁ l₂)) λ pb₄ →
+  simpl-mp (resolve-r⁺ pb₄ pb₁ v₁) id }

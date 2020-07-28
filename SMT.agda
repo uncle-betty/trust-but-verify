@@ -1,20 +1,23 @@
 module SMT where
 
 open import Data.Bool using (Bool ; true ; false ; _∧_ ; _∨_ ; not ; if_then_else_)
+open import Data.Bool.Properties using (∨-identityʳ ; not-¬)
 open import Data.Empty using (⊥)
-open import Data.List using ([])
+open import Data.List using ([] ; _∷_)
 open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂)
 open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Unit using (⊤ ; tt)
 
 open import Function using (id ; _∘_ ; _$_ ; _∋_)
 
-open import Relation.Binary.PropositionalEquality using (_≡_ ; refl ; sym ; inspect ; [_])
+open import Relation.Binary.PropositionalEquality using (_≡_ ; refl ; subst ; sym ; inspect ; [_])
 
 open import Relation.Nullary using (¬_)
 open import Relation.Nullary.Negation using (contradiction)
 
 open import Env using (Var ; var ; Env ; evalᵛ)
+
+--- SMT ---
 
 data Formula : Set
 
@@ -109,34 +112,77 @@ data Holdsᶠ : Formula → Set where
 
 module Rules (env : Env) where
 
-  open import SAT env using (Holdsᶜ)
+  open import SAT env using (pos ; neg ; Holdsᶜ ; holdsᶜ ; evalᶜ ; not-t⇒f ; f⇒not-t)
 
   -- LFSC: atom
   data Atom : Var → Formula → Set where
     atom : (v : Var) → (f : Formula) → evalᵛ env v ≡ evalᶠ f → Atom v f
 
-  -- LFSC: decl_atom - but note the additional Atom parameter
-  decl-atom : ∀ {v} f → {{Atom v f}} → ((v : Var) → Atom v f → Holdsᶜ []) → Holdsᶜ []
-  decl-atom {v} _ {{a}} fn = fn v a
+  -- LFSC: decl_atom - adapted: additional Atom, missing Var
+  decl-atom : ∀ {v} f → {{Atom v f}} → (Atom v f → Holdsᶜ []) → Holdsᶜ []
+  decl-atom _ {{a}} fn = fn a
 
-{-
-claus-t : ∀ {v f} → atom v f → holdsᶠ f → holds (pos v ∷ [])
-claus-t {v} {f} a h with evalᶠ f | inspect evalᶠ f
-... | true  | _      rewrite a = inj₁ tt
-... | false | [ eq ] = contradiction h (evalᶠ-f eq)
+  -- LFSC: clausify_form
+  clausi : ∀ {f v} → Atom v f → Holdsᶠ f → Holdsᶜ (pos v ∷ [])
 
-claus-f : ∀ {v f} → atom v f → holdsᶠ (notᶠ f) → holds (neg v ∷ [])
-claus-f {v} {f} a h with evalᶠ f | inspect evalᶠ f
-... | true  | [ eq ] = contradiction (evalᶠ-t eq) h
-... | false | [ eq ] rewrite a = inj₁ id
+  clausi {f} {v} (atom .v .f a) (holdsᶠ .f h)
+    rewrite h
+    = holdsᶜ (pos v ∷ []) (subst (λ # → # ∨ false ≡ true) (sym a) refl)
 
-assum-t : ∀ {v f c} → atom v f → (holdsᶠ f → holds c) → holds (neg v ∷ c)
-assum-t {v} {f} {c} a fn with evalᶠ f | inspect evalᶠ f
-... | true  | [ eq ] = inj₂ (fn (evalᶠ-t eq))
-... | false | _      rewrite a = inj₁ id
+  -- LFSC: clausify_form_not
+  clausi-¬ : ∀ {f v} → Atom v f → Holdsᶠ (notᶠ f) → Holdsᶜ (neg v ∷ [])
 
-assum-f : ∀ {v f c} → atom v f → (holdsᶠ (notᶠ f) → holds c) → holds (pos v ∷ c)
-assum-f {v} {f} {c} a fn with evalᶠ f | inspect evalᶠ f
-... | true  | _      rewrite a = inj₁ tt
-... | false | [ eq ] = inj₂ (fn (evalᶠ-f eq))
--}
+  clausi-¬ {f} {v} (atom .v .f a) (holdsᶠ .(notᶠ f) h)
+    rewrite not-t⇒f h
+    = holdsᶜ (neg v ∷ []) (subst (λ # → not # ∨ false ≡ true) (sym a) refl)
+
+  -- LFSC: clausify_false
+  clausi-f : Holdsᶠ falseᶠ → Holdsᶜ []
+  clausi-f (holdsᶠ .falseᶠ ())
+
+  -- LFSC: th_let_pf
+  mpᶠ : ∀ {f} → Holdsᶠ f → (Holdsᶠ f → Holdsᶜ []) → Holdsᶜ []
+  mpᶠ {f} h fn = fn h
+
+  -- LFSC: contra
+  contra : ∀ {f} → Holdsᶠ f → Holdsᶠ (notᶠ f) → Holdsᶠ falseᶠ
+  contra {f} (holdsᶠ .f h₁) (holdsᶠ .(notᶠ f) h₂) = contradiction (not-t⇒f h₂) (not-¬ h₁)
+
+  holds⇒eval : ∀ {f c} → (Holdsᶠ f → Holdsᶜ c) → evalᶠ f ≡ true → evalᶜ c ≡ true
+  holds⇒eval {f} {c} fn e with fn (holdsᶠ f e)
+  ... | holdsᶜ .c h = h
+
+  holds⇒eval-¬ : ∀ {f c} → (Holdsᶠ (notᶠ f) → Holdsᶜ c) → evalᶠ f ≡ false → evalᶜ c ≡ true
+  holds⇒eval-¬ {f} {c} fn e with fn (holdsᶠ (notᶠ f) (f⇒not-t e))
+  ... | holdsᶜ .c h = h
+
+  -- LFSC: ast
+  assum : ∀ {v f c} → Atom v f → (Holdsᶠ f → Holdsᶜ c) → Holdsᶜ (neg v ∷ c)
+  assum {v} {f} {c} (atom .v .f a) fn = holdsᶜ (neg v ∷ c) lem
+
+    where
+
+    lem : not (evalᵛ env v) ∨ evalᶜ c ≡ true
+    lem with evalᶠ f | inspect evalᶠ f
+    lem | true  | [ eq ] rewrite a = holds⇒eval fn eq
+    lem | false | [ eq ] rewrite a = refl
+
+  -- LFSC: asf
+  assum-¬ : ∀ {v f c} → Atom v f → (Holdsᶠ (notᶠ f) → Holdsᶜ c) → Holdsᶜ (pos v ∷ c)
+  assum-¬ {v} {f} {c} (atom .v .f a) fn = holdsᶜ (pos v ∷ c) lem
+
+    where
+
+    lem : evalᵛ env v ∨ evalᶜ c ≡ true
+    lem with evalᶠ f | inspect evalᶠ f
+    lem | true  | [ eq ] rewrite a = refl
+    lem | false | [ eq ] rewrite a = holds⇒eval-¬ fn eq
+
+--- Base theory ---
+
+-- XXX - remove some day, CVC4 says that these are temporary
+postulate
+  -- LFSC: trust
+  trust-f : Holdsᶠ falseᶠ
+  -- LFSC: trust_f
+  trustᶠ : (f : Formula) → Holdsᶠ f
