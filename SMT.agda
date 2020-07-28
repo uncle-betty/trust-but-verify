@@ -118,9 +118,7 @@ module Rules (env : Env) where
   data Atom : Var → Formula → Set where
     atom : (v : Var) → (f : Formula) → evalᵛ env v ≡ evalᶠ f → Atom v f
 
-  -- LFSC: decl_atom - adapted: additional Atom, missing Var
-  decl-atom : ∀ {v} f → {{Atom v f}} → (Atom v f → Holdsᶜ []) → Holdsᶜ []
-  decl-atom _ {{a}} fn = fn a
+  -- LFSC: decl_atom - replaced with concrete assignments to vᵢ and aᵢ
 
   -- LFSC: clausify_form
   clausi : ∀ {f v} → Atom v f → Holdsᶠ f → Holdsᶜ (pos v ∷ [])
