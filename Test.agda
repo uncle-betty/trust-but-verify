@@ -18,7 +18,7 @@ open import SAT env
     resolve-r ; resolve-r⁺ ; resolve-q ; resolve-q⁺ ; simpl-mp
   )
 
-open S.Rules env using (atom ; decl-atom)
+open S.Rules env using (Atom ; atom ; decl-atom)
 
 -- SAT test #1
 
@@ -49,5 +49,8 @@ sat₂ a b r =
 
 -- SMT test #1
 
-a₀ = atom (var 0) falseᶠ refl
-a₁ = atom (var 1) trueᶠ refl
+instance
+  _ = atom (var 0) falseᶠ refl
+  _ = atom (var 1) trueᶠ refl
+
+foo = decl-atom trueᶠ λ v₁ → λ a₁ → {!!}

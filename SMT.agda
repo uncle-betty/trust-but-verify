@@ -116,8 +116,8 @@ module Rules (env : Env) where
     atom : (v : Var) → (f : Formula) → evalᵛ env v ≡ evalᶠ f → Atom v f
 
   -- LFSC: decl_atom - but note the additional Atom parameter
-  decl-atom : ∀ {v f} → {{Atom v f}} → (∀ {v} → Atom v f → Holdsᶜ []) → Holdsᶜ []
-  decl-atom {{a}} fn = fn a
+  decl-atom : ∀ {v} f → {{Atom v f}} → ((v : Var) → Atom v f → Holdsᶜ []) → Holdsᶜ []
+  decl-atom {v} _ {{a}} fn = fn v a
 
 {-
 claus-t : ∀ {v f} → atom v f → holdsᶠ f → holds (pos v ∷ [])
