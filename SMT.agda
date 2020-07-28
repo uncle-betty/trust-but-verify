@@ -1,6 +1,6 @@
 module SMT where
 
-open import Data.Bool using (Bool ; true ; false ; _∧_ ; _∨_ ; not ; T ; if_then_else_)
+open import Data.Bool using (Bool ; true ; false ; _∧_ ; _∨_ ; not ; if_then_else_)
 open import Data.Empty using (⊥)
 open import Data.List using ([])
 open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂)
@@ -14,7 +14,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_ ; refl ; sym ; in
 open import Relation.Nullary using (¬_)
 open import Relation.Nullary.Negation using (contradiction)
 
-open import SAT using (Var ; var ; evalᵛ ; Holdsᶜ)
+open import Env using (Var ; var ; Env ; evalᵛ)
 
 data Formula : Set
 
@@ -107,13 +107,17 @@ proveᶠ-¬ {orᶠ f₁ f₂} _  | false | [ eq₁ ] | false | [ eq₂ ] =
 data Holdsᶠ : Formula → Set where
   holdsᶠ : (f : Formula) → evalᶠ f ≡ true → Holdsᶠ f
 
--- LFSC: atom
-data Atom (v : Var) (f : Formula) : Set where
-  atom : evalᵛ v ≡ evalᶠ f → Atom v f
+module Rules (env : Env) where
 
--- LFSC: decl_atom - note the additional Atom parameter
-decl-atom : ∀ {v f} → Atom v f → (∀ {v} → Atom v f → Holdsᶜ []) → Holdsᶜ []
-decl-atom a fn = fn a
+  open import SAT env using (Holdsᶜ)
+
+  -- LFSC: atom
+  data Atom : Var → Formula → Set where
+    atom : (v : Var) → (f : Formula) → evalᵛ env v ≡ evalᶠ f → Atom v f
+
+  -- LFSC: decl_atom - but note the additional Atom parameter
+  decl-atom : ∀ {v f} → {{Atom v f}} → (∀ {v} → Atom v f → Holdsᶜ []) → Holdsᶜ []
+  decl-atom {{a}} fn = fn a
 
 {-
 claus-t : ∀ {v f} → atom v f → holdsᶠ f → holds (pos v ∷ [])

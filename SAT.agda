@@ -1,4 +1,6 @@
-module SAT where
+open import Env using (Env)
+
+module SAT (env : Env) where
 
 open import Agda.Primitive using (Level) renaming (lzero to 0ℓ ; lsuc to +ℓ)
 
@@ -7,8 +9,6 @@ open import Data.Bool.Properties using (∨-zeroʳ)
 open import Data.Empty using (⊥ ; ⊥-elim)
 open import Data.List using (List ; [] ; _∷_ ; _++_ ; map)
 open import Data.Maybe using (just ; nothing)
-open import Data.Nat using (ℕ ; _<_)
-open import Data.Nat.Properties using (<-trans) renaming (<-strictTotalOrder to <-STO)
 open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂)
 open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Unit using (⊤ ; tt)
@@ -26,11 +26,9 @@ open import Relation.Binary.PropositionalEquality.Properties using (isEquivalenc
 open import Relation.Nullary using (Dec ; yes ; no ; _because_ ; does ; proof ; ofʸ ; ofⁿ ; ¬_)
 open import Relation.Nullary.Negation using (contradiction)
 
-data Oper : Set
+open import Env using (Var ; var ; Var-< ; var-<-trans ; var-comp ; evalᵛ)
 
--- LFSC: var
-data Var : Set where
-  var : ℕ → Var
+data Oper : Set
 
 -- LFSC: lit, pos, neg
 data Lit : Set where
@@ -48,42 +46,6 @@ data Oper where
 
 -- LFSC: cnf, cnfn, cnfc
 CNF = List Clause
-
-ℕ-comp = ISTO.compare (STO.isStrictTotalOrder <-STO)
-
-data Var-< : Var → Var → Set where
-  v<v : ∀ {m n} → m < n → Var-< (var m) (var n)
-
-var-<-trans : Transitive Var-<
-var-<-trans {var m} {var n} {var o} (v<v m<n) (v<v n<o) = v<v (<-trans m<n n<o)
-
-var-≡ : ∀ {m n} → var m ≡ var n → m ≡ n
-var-≡ refl = refl
-
-var-< : ∀ {m n} → Var-< (var m) (var n) → m < n
-var-< (v<v p) = p
-
-var-comp : Trichotomous _≡_ Var-<
-var-comp (var m) (var n) with ℕ-comp m n
-... | tri< p₁ p₂ p₃ = tri< (v<v p₁)     (p₂ ∘ var-≡)  (p₃ ∘ var-<)
-... | tri≈ p₁ p₂ p₃ = tri≈ (p₁ ∘ var-<) (cong var p₂) (p₃ ∘ var-<)
-... | tri> p₁ p₂ p₃ = tri> (p₁ ∘ var-<) (p₂ ∘ var-≡)  (v<v p₃)
-
-var-<-ISTO : ISTO _≡_ Var-<
-var-<-ISTO = record { isEquivalence = isEquivalence ; trans = var-<-trans ; compare = var-comp }
-
-var-<-STO : STO 0ℓ 0ℓ 0ℓ
-var-<-STO = record { Carrier = Var ; _≈_ = _≡_ ; _<_ = Var-< ; isStrictTotalOrder = var-<-ISTO }
-
-import Data.Tree.AVL.Map var-<-STO as M using (Map ; empty ; insert ; lookup)
-import Data.Tree.AVL.Indexed var-<-STO as IM using (const)
-import AVL var-<-STO (IM.const Bool) id (λ _ _ → refl) as AM using (avl-insed ; avl-other)
-
-map-insed : ∀ v (b : Bool) m → (M.lookup v (M.insert v b m)) ≡ just b
-map-insed v b m = AM.avl-insed v b m
-
-map-other : ∀ v′ v (b : Bool) m → v′ ≢ v → (M.lookup v′ (M.insert v b m)) ≡ M.lookup v′ m
-map-other v′ v b m = AM.avl-other v′ v b m
 
 data Lit-< : Lit → Lit → Set where
   n<p : ∀ {x y} →             Lit-< (neg x) (pos y)
@@ -144,9 +106,6 @@ set-insed l s rewrite AS.avl-insed l tt s = refl
 set-other : ∀ l′ l s → l′ ≢ l → (l′ ∈? (insert l s)) ≡ (l′ ∈? s)
 set-other l′ l s l′≢l rewrite AS.avl-other l′ l tt s l′≢l = refl
 
-postulate
-  envir : M.Map Bool
-
 set-≡ : ∀ s₁ s₂ → Set
 set-≡ s₁ s₂ = ∀ l′ → (l′ ∈? s₁) ≡ (l′ ∈? s₂)
 
@@ -200,23 +159,18 @@ t⇒not-f : ∀ {x} → x ≡ true → not x ≡ false
 t⇒not-f {true}  _  = refl
 t⇒not-f {false} ()
 
-evalᵛ : Var → Bool
-evalᵛ v with M.lookup v envir
-... | just b  = b
-... | nothing = false
-
 propᵛ : Var → Set
-propᵛ = T ∘ evalᵛ
+propᵛ = T ∘ (evalᵛ env)
 
-proveᵛ : ∀ {v} → evalᵛ v ≡ true → propᵛ v
+proveᵛ : ∀ {v} → evalᵛ env v ≡ true → propᵛ v
 proveᵛ p = subst id (sym (cong T p)) tt
 
-proveᵛ-¬ : ∀ {v} → evalᵛ v ≡ false → ¬ propᵛ v
+proveᵛ-¬ : ∀ {v} → evalᵛ env v ≡ false → ¬ propᵛ v
 proveᵛ-¬ p r = subst id (cong T p) r
 
 evalˡ : Lit → Bool
-evalˡ (pos v′) = evalᵛ v′
-evalˡ (neg v′) = not (evalᵛ v′)
+evalˡ (pos v′) = evalᵛ env v′
+evalˡ (neg v′) = not (evalᵛ env v′)
 
 propˡ : Lit → Set
 propˡ (pos v′) = propᵛ v′
@@ -361,10 +315,10 @@ resolve {l} {inj₂ (skip l′) ∷ xs} {s} h₁ h₂
 
 -- LFSC: holds
 data Holdsᶜ : Clause → Set where
-  holdsᶜ : (c : Clause) → (p : evalᶜ c ≡ true) → Holdsᶜ c
+  holdsᶜ : (c : Clause) → evalᶜ c ≡ true → Holdsᶜ c
 
 data Holds⁺ : Clause⁺ → Set where
-  holds⁺ : (c : Clause⁺) → (p : eval⁺ c empty ≡ true) → Holds⁺ c
+  holds⁺ : (c : Clause⁺) → eval⁺ c empty ≡ true → Holds⁺ c
 
 -- LFSC: R
 resolve-r : ∀ {c₁ c₂} → Holds⁺ c₁ → Holds⁺ c₂ → (v : Var) →
@@ -377,7 +331,7 @@ resolve-r (holds⁺ c₁ p₁) (holds⁺ c₂ p₂) v = holds⁺ _ (help {c₁} 
   help : ∀ {c₁ c₂} → eval⁺ c₁ empty ≡ true → eval⁺ c₂ empty ≡ true → (v : Var) →
     eval⁺ (inj₂ (join (inj₂ (skip (pos v)) ∷ c₁)) ∷ inj₂ (skip (neg v)) ∷ c₂) empty ≡ true
 
-  help {c₁} {c₂} h₁ h₂ v with evalᵛ v | inspect evalᵛ v
+  help {c₁} {c₂} h₁ h₂ v with evalᵛ env v | inspect (evalᵛ env) v
   ... | true | [ eq ]
     rewrite resolve {pos v} {c₂} {empty} eq h₂
     = ∨-zeroʳ (eval⁺ c₁ (insert (pos v) empty))
@@ -395,7 +349,7 @@ resolve-q (holds⁺ c₁ p₁) (holds⁺ c₂ p₂) v = holds⁺ _ (help {c₁} 
   help : ∀ {c₁ c₂} → eval⁺ c₁ empty ≡ true → eval⁺ c₂ empty ≡ true → (v : Var) →
     eval⁺ (inj₂ (join (inj₂ (skip (neg v)) ∷ c₁)) ∷ inj₂ (skip (pos v)) ∷ c₂) empty ≡ true
 
-  help {c₁} {c₂} h₁ h₂ v with evalᵛ v | inspect evalᵛ v
+  help {c₁} {c₂} h₁ h₂ v with evalᵛ env v | inspect (evalᵛ env) v
   ... | true  | [ eq ] rewrite resolve {pos v} {c₁} {empty} eq h₁ = refl
 
   ... | false | [ eq ]
@@ -506,11 +460,11 @@ dedup-add-f-≡ {l} {l′ ∷ ls} {s} h₁ h₂ | no p rewrite set-other l′ l 
 
 dedup-sound : ∀ {c} → evalᶜ c ≡ true → evalᶜ (dedup c empty) ≡ true
 
-dedup-sound {pos v′ ∷ ls} h with evalᵛ v′ | inspect evalᵛ v′
+dedup-sound {pos v′ ∷ ls} h with evalᵛ env v′ | inspect (evalᵛ env) v′
 ... | true  | _      = refl
 ... | false | [ eq ] = dedup-add-f-≡ {pos v′} {ls} {empty} eq (dedup-sound {ls} h)
 
-dedup-sound {neg v′ ∷ ls} h with evalᵛ v′ | inspect evalᵛ v′
+dedup-sound {neg v′ ∷ ls} h with evalᵛ env v′ | inspect (evalᵛ env) v′
 ... | true  | [ eq ] = dedup-add-f-≡ {neg v′} {ls} {empty} (t⇒not-f eq) (dedup-sound {ls} h)
 ... | false | _      = refl
 
