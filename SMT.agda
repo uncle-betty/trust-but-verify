@@ -43,6 +43,8 @@ data Formula where
   orᶠ    : formula-op₂
   -- LFSC: impl
   implᶠ  : formula-op₂
+  -- LFSC: iff
+  iffᶠ   : formula-op₂
 
 evalᶠ : Formula → Bool
 evalᶠ trueᶠ = true
@@ -52,6 +54,7 @@ evalᶠ (notᶠ f) = not (evalᶠ f)
 evalᶠ (andᶠ f₁ f₂) = evalᶠ f₁ ∧ evalᶠ f₂
 evalᶠ (orᶠ f₁ f₂) = evalᶠ f₁ ∨ evalᶠ f₂
 evalᶠ (implᶠ f₁ f₂) = not (evalᶠ f₁) ∨ evalᶠ f₂
+evalᶠ (iffᶠ f₁ f₂) = (not (evalᶠ f₁) ∨ evalᶠ f₂) ∧ (not (evalᶠ f₂) ∨ evalᶠ f₁)
 
 propᶠ : Formula → Set
 propᶠ trueᶠ  = ⊤
@@ -61,6 +64,7 @@ propᶠ (notᶠ f) = ¬ propᶠ f
 propᶠ (andᶠ f₁ f₂) = propᶠ f₁ × propᶠ f₂
 propᶠ (orᶠ f₁ f₂) = propᶠ f₁ ⊎ propᶠ f₂
 propᶠ (implᶠ f₁ f₂) = propᶠ f₁ → propᶠ f₂
+propᶠ (iffᶠ f₁ f₂) = (propᶠ f₁ → propᶠ f₂) × (propᶠ f₂ → propᶠ f₁)
 
 proveᶠ : ∀ {f} → evalᶠ f ≡ true → propᶠ f
 proveᶠ-¬ : ∀ {f} → evalᶠ f ≡ false → ¬ propᶠ f
@@ -86,6 +90,14 @@ proveᶠ {implᶠ f₁ f₂} p with evalᶠ f₁ | inspect evalᶠ f₁ | eval�
 proveᶠ {implᶠ f₁ f₂} _  | true  | [ eq₁ ] | true  | [ eq₂ ] = λ _ → proveᶠ eq₂
 proveᶠ {implᶠ f₁ f₂} () | true  | _       | false | _
 proveᶠ {implᶠ f₁ f₂} _  | false | [ eq₁ ] | _     | _       = λ x → contradiction x (proveᶠ-¬ eq₁)
+
+proveᶠ {iffᶠ f₁ f₂} p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+proveᶠ {iffᶠ f₁ f₂} _  | true  | [ eq₁ ] | true  | [ eq₂ ] = (λ _ → proveᶠ eq₂) , λ _ → proveᶠ eq₁
+proveᶠ {iffᶠ f₁ f₂} () | true  | _       | false | _
+proveᶠ {iffᶠ f₁ f₂} () | false | _       | true  | _
+
+proveᶠ {iffᶠ f₁ f₂} _  | false | [ eq₁ ] | false | [ eq₂ ] =
+  (λ x → contradiction x (proveᶠ-¬ eq₁)) , λ x → contradiction x (proveᶠ-¬ eq₂)
 
 proveᶠ-¬ {falseᶠ} p = id
 
@@ -122,6 +134,17 @@ proveᶠ-¬ {implᶠ f₁ f₂} _  | true  | [ eq₁ ] | false | [ eq₂ ] =
   λ fn → (proveᶠ-¬ eq₂ ∘ fn) (proveᶠ eq₁)
 
 proveᶠ-¬ {implᶠ f₁ f₂} () | false | _       | _     | _
+
+proveᶠ-¬ {iffᶠ f₁ f₂} p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+proveᶠ-¬ {iffᶠ f₁ f₂} () | true  | _       | true  | _
+
+proveᶠ-¬ {iffᶠ f₁ f₂} _  | true  | [ eq₁ ] | false | [ eq₂ ] =
+  λ { (fn , _) → (proveᶠ-¬ eq₂ ∘ fn) (proveᶠ eq₁) }
+
+proveᶠ-¬ {iffᶠ f₁ f₂} _  | false | [ eq₁ ] | true  | [ eq₂ ] =
+  λ { (_ , fn) → (proveᶠ-¬ eq₁ ∘ fn) (proveᶠ eq₂) }
+
+proveᶠ-¬ {iffᶠ f₁ f₂} () | false | _       | false | _
 
 -- LFSC: th_holds
 data Holdsᶠ : Formula → Set where
