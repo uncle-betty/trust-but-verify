@@ -41,6 +41,8 @@ data Formula where
   andᶠ   : formula-op₂
   -- LFSC: or
   orᶠ    : formula-op₂
+  -- LFSC: impl
+  implᶠ  : formula-op₂
 
 evalᶠ : Formula → Bool
 evalᶠ trueᶠ = true
@@ -49,6 +51,7 @@ evalᶠ falseᶠ = false
 evalᶠ (notᶠ f) = not (evalᶠ f)
 evalᶠ (andᶠ f₁ f₂) = evalᶠ f₁ ∧ evalᶠ f₂
 evalᶠ (orᶠ f₁ f₂) = evalᶠ f₁ ∨ evalᶠ f₂
+evalᶠ (implᶠ f₁ f₂) = not (evalᶠ f₁) ∨ evalᶠ f₂
 
 propᶠ : Formula → Set
 propᶠ trueᶠ  = ⊤
@@ -57,6 +60,7 @@ propᶠ falseᶠ = ⊥
 propᶠ (notᶠ f) = ¬ propᶠ f
 propᶠ (andᶠ f₁ f₂) = propᶠ f₁ × propᶠ f₂
 propᶠ (orᶠ f₁ f₂) = propᶠ f₁ ⊎ propᶠ f₂
+propᶠ (implᶠ f₁ f₂) = propᶠ f₁ → propᶠ f₂
 
 proveᶠ : ∀ {f} → evalᶠ f ≡ true → propᶠ f
 proveᶠ-¬ : ∀ {f} → evalᶠ f ≡ false → ¬ propᶠ f
@@ -77,6 +81,11 @@ proveᶠ {orᶠ f₁ f₂} p  with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ
 proveᶠ {orᶠ f₁ f₂} _  | true  | [ eq₁ ] | _     | _       = inj₁ (proveᶠ eq₁)
 proveᶠ {orᶠ f₁ f₂} _  | false | _       | true  | [ eq₂ ] = inj₂ (proveᶠ eq₂)
 proveᶠ {orᶠ f₁ f₂} () | false | _       | false | _
+
+proveᶠ {implᶠ f₁ f₂} p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+proveᶠ {implᶠ f₁ f₂} _  | true  | [ eq₁ ] | true  | [ eq₂ ] = λ _ → proveᶠ eq₂
+proveᶠ {implᶠ f₁ f₂} () | true  | _       | false | _
+proveᶠ {implᶠ f₁ f₂} _  | false | [ eq₁ ] | _     | _       = λ x → contradiction x (proveᶠ-¬ eq₁)
 
 proveᶠ-¬ {falseᶠ} p = id
 
@@ -105,6 +114,14 @@ proveᶠ-¬ {orᶠ f₁ f₂} _  | false | [ eq₁ ] | false | [ eq₂ ] =
     (inj₁ p₁) → contradiction p₁ (proveᶠ-¬ eq₁) ;
     (inj₂ p₂) → contradiction p₂ (proveᶠ-¬ eq₂)
   }
+
+proveᶠ-¬ {implᶠ f₁ f₂} p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+proveᶠ-¬ {implᶠ f₁ f₂} () | true  | _       | true  | _
+
+proveᶠ-¬ {implᶠ f₁ f₂} _  | true  | [ eq₁ ] | false | [ eq₂ ] =
+  λ fn → (proveᶠ-¬ eq₂ ∘ fn) (proveᶠ eq₁)
+
+proveᶠ-¬ {implᶠ f₁ f₂} () | false | _       | _     | _
 
 -- LFSC: th_holds
 data Holdsᶠ : Formula → Set where
