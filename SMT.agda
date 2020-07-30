@@ -1,6 +1,6 @@
 module SMT where
 
-open import Data.Bool using (Bool ; true ; false ; _∧_ ; _∨_ ; not ; if_then_else_)
+open import Data.Bool using (Bool ; true ; false ; _∧_ ; _∨_ ; not ; if_then_else_ ; T)
 open import Data.Bool.Properties using (∨-identityʳ ; not-¬)
 open import Data.Empty using (⊥)
 open import Data.List using ([] ; _∷_)
@@ -34,8 +34,6 @@ data Formula where
   trueᶠ  : Formula
   -- LFSC: false
   falseᶠ : Formula
-  -- extension to opaquely wrap an existing witness for an arbitrary proposition
-  opaqᶠ  : {P : Set} → (w : P) → Formula
 
   -- LFSC: not
   notᶠ   : formula-op₁
@@ -48,10 +46,12 @@ data Formula where
   -- LFSC: iff
   iffᶠ   : formula-op₂
 
+  -- LFSC: p_app
+  appᶠ   : Bool → Formula
+
 evalᶠ : Formula → Bool
 evalᶠ trueᶠ = true
 evalᶠ falseᶠ = false
-evalᶠ (opaqᶠ _) = true
 
 evalᶠ (notᶠ f) = not (evalᶠ f)
 evalᶠ (andᶠ f₁ f₂) = evalᶠ f₁ ∧ evalᶠ f₂
@@ -59,10 +59,11 @@ evalᶠ (orᶠ f₁ f₂) = evalᶠ f₁ ∨ evalᶠ f₂
 evalᶠ (implᶠ f₁ f₂) = not (evalᶠ f₁) ∨ evalᶠ f₂
 evalᶠ (iffᶠ f₁ f₂) = (not (evalᶠ f₁) ∨ evalᶠ f₂) ∧ (not (evalᶠ f₂) ∨ evalᶠ f₁)
 
+evalᶠ (appᶠ b) = b
+
 propᶠ : Formula → Set
 propᶠ trueᶠ  = ⊤
 propᶠ falseᶠ = ⊥
-propᶠ (opaqᶠ {P} _) = P
 
 propᶠ (notᶠ f) = ¬ propᶠ f
 propᶠ (andᶠ f₁ f₂) = propᶠ f₁ × propᶠ f₂
@@ -70,11 +71,12 @@ propᶠ (orᶠ f₁ f₂) = propᶠ f₁ ⊎ propᶠ f₂
 propᶠ (implᶠ f₁ f₂) = propᶠ f₁ → propᶠ f₂
 propᶠ (iffᶠ f₁ f₂) = (propᶠ f₁ → propᶠ f₂) × (propᶠ f₂ → propᶠ f₁)
 
+propᶠ (appᶠ b) = T b
+
 proveᶠ : ∀ f → evalᶠ f ≡ true → propᶠ f
 proveᶠ-¬ : ∀ f → evalᶠ f ≡ false → ¬ propᶠ f
 
 proveᶠ trueᶠ p = tt
-proveᶠ (opaqᶠ w) p = w
 
 proveᶠ (notᶠ f) p with evalᶠ f | inspect evalᶠ f
 proveᶠ (notᶠ f) () | true  | _
@@ -107,6 +109,8 @@ proveᶠ (iffᶠ f₁ f₂) () | false | _       | true  | _
 
 proveᶠ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | false | [ eq₂ ] =
   (λ x → contradiction x (proveᶠ-¬ f₁ eq₁)) , λ x → contradiction x (proveᶠ-¬ f₂ eq₂)
+
+proveᶠ (appᶠ b) refl = tt
 
 proveᶠ-¬ falseᶠ p = id
 
@@ -155,6 +159,8 @@ proveᶠ-¬ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | true  | [ eq₂ ] =
 
 proveᶠ-¬ (iffᶠ f₁ f₂) () | false | _       | false | _
 
+proveᶠ-¬ (appᶠ b) refl = id
+
 -- LFSC: th_holds
 data Holdsᶠ : Formula → Set where
   holdsᶠ : (f : Formula) → evalᶠ f ≡ true → Holdsᶠ f
@@ -162,6 +168,11 @@ data Holdsᶠ : Formula → Set where
 module Rules (env : Env) where
 
   open import SAT env using (pos ; neg ; Holdsᶜ ; holdsᶜ ; evalᶜ ; not-t⇒f ; f⇒not-t)
+
+  proofᶠ : (f : Formula) → ¬ Holdsᶠ (notᶠ f) → propᶠ f
+  proofᶠ f h with evalᶠ f | inspect evalᶠ f
+  ... | true  | [ eq ] = proveᶠ f eq
+  ... | false | [ eq ] = contradiction (holdsᶠ (notᶠ f) (f⇒not-t eq)) h
 
   -- LFSC: atom
   data Atom : Var → Formula → Set where
