@@ -48,6 +48,8 @@ data Formula where
 
   -- LFSC: p_app
   appᶠ   : Bool → Formula
+  -- extension to opaquely wrap an existing witness for an arbitrary proposition
+  witᶠ   : {P : Set} → P → Formula
 
 evalᶠ : Formula → Bool
 evalᶠ trueᶠ = true
@@ -60,6 +62,7 @@ evalᶠ (implᶠ f₁ f₂) = not (evalᶠ f₁) ∨ evalᶠ f₂
 evalᶠ (iffᶠ f₁ f₂) = (not (evalᶠ f₁) ∨ evalᶠ f₂) ∧ (not (evalᶠ f₂) ∨ evalᶠ f₁)
 
 evalᶠ (appᶠ b) = b
+evalᶠ (witᶠ _) = true
 
 propᶠ : Formula → Set
 propᶠ trueᶠ  = ⊤
@@ -72,6 +75,7 @@ propᶠ (implᶠ f₁ f₂) = propᶠ f₁ → propᶠ f₂
 propᶠ (iffᶠ f₁ f₂) = (propᶠ f₁ → propᶠ f₂) × (propᶠ f₂ → propᶠ f₁)
 
 propᶠ (appᶠ b) = T b
+propᶠ (witᶠ {P} _) = P
 
 proveᶠ : ∀ f → evalᶠ f ≡ true → propᶠ f
 proveᶠ-¬ : ∀ f → evalᶠ f ≡ false → ¬ propᶠ f
@@ -111,6 +115,7 @@ proveᶠ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | false | [ eq₂ ] =
   (λ x → contradiction x (proveᶠ-¬ f₁ eq₁)) , λ x → contradiction x (proveᶠ-¬ f₂ eq₂)
 
 proveᶠ (appᶠ b) refl = tt
+proveᶠ (witᶠ w) refl = w
 
 proveᶠ-¬ falseᶠ p = id
 
