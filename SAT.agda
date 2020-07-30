@@ -320,6 +320,9 @@ data Holdsᶜ : Clause → Set where
 data Holds⁺ : Clause⁺ → Set where
   holds⁺ : (c : Clause⁺) → eval⁺ c empty ≡ true → Holds⁺ c
 
+holdsᶜ-[] : Holdsᶜ [] → ⊥
+holdsᶜ-[] (holdsᶜ .[] ())
+
 -- LFSC: R
 resolve-r : ∀ {c₁ c₂} → Holds⁺ c₁ → Holds⁺ c₂ → (v : Var) →
   Holds⁺ (inj₂ (join (inj₂ (skip (pos v)) ∷ c₁)) ∷ inj₂ (skip (neg v)) ∷ c₂)

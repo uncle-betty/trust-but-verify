@@ -172,12 +172,13 @@ data Holdsᶠ : Formula → Set where
 
 module Rules (env : Env) where
 
-  open import SAT env using (pos ; neg ; Holdsᶜ ; holdsᶜ ; evalᶜ ; not-t⇒f ; f⇒not-t)
+  open import SAT env
+    using (pos ; neg ; Holdsᶜ ; holdsᶜ ; holdsᶜ-[] ; evalᶜ ; not-t⇒f ; f⇒not-t)
 
-  proofᶠ : (f : Formula) → ¬ Holdsᶠ (notᶠ f) → propᶠ f
+  proofᶠ : (f : Formula) → (Holdsᶠ (notᶠ f) → Holdsᶜ []) → propᶠ f
   proofᶠ f h with evalᶠ f | inspect evalᶠ f
   ... | true  | [ eq ] = proveᶠ f eq
-  ... | false | [ eq ] = contradiction (holdsᶠ (notᶠ f) (f⇒not-t eq)) h
+  ... | false | [ eq ] = contradiction (holdsᶠ (notᶠ f) (f⇒not-t eq)) (holdsᶜ-[] ∘ h)
 
   -- LFSC: atom
   data Atom : Var → Formula → Set where
