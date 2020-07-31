@@ -85,6 +85,10 @@ _     ⇔ᵇ _     = false
 ⇔ᵇ≡f⇒≢ true false p = λ ()
 ⇔ᵇ≡f⇒≢ false true p = λ ()
 
+x⇔ᵇx : ∀ b → (b ⇔ᵇ b) ≡ true
+x⇔ᵇx true  = refl
+x⇔ᵇx false = refl
+
 evalᶠ : Formula → Bool
 evalᶠ trueᶠ = true
 evalᶠ falseᶠ = false
@@ -256,21 +260,21 @@ module Rules (env : Env) where
 
   -- LFSC: pred_eq_t
   x≡tᵇ : ∀ {b} → Holdsᶠ (appᵇ b) → Holdsᶠ (≡ᵇ b true)
-  x≡tᵇ (holdsᶠ _ refl) = holdsᶠ _ refl
+  x≡tᵇ {true} (holdsᶠ _ _) = holdsᶠ _ refl
 
   -- LFSC: pred_eq_f
   x≡fᵇ : ∀ {b} → Holdsᶠ (notᶠ (appᵇ b)) → Holdsᶠ (≡ᵇ b false)
-  x≡fᵇ (holdsᶠ _ p) rewrite not-t⇒f p = holdsᶠ _ refl
+  x≡fᵇ {false} (holdsᶠ _ _) = holdsᶠ _ refl
 
   -- XXX - what does f_to_b do?
 
   -- LFSC: true_preds_equal
   tt⇒x≡yᵇ : ∀ {b₁ b₂} → Holdsᶠ (appᵇ b₁) → Holdsᶠ (appᵇ b₂) → Holdsᶠ (≡ᵇ b₁ b₂)
-  tt⇒x≡yᵇ (holdsᶠ _ refl) (holdsᶠ _ refl) = holdsᶠ _ refl
+  tt⇒x≡yᵇ {true} {true} (holdsᶠ _ _) (holdsᶠ _ _) = holdsᶠ _ refl
 
   -- LFSC: false_preds_equal
   ff⇒x≡yᵇ : ∀ {b₁ b₂} → Holdsᶠ (notᶠ (appᵇ b₁)) → Holdsᶠ (notᶠ (appᵇ b₂)) → Holdsᶠ (≡ᵇ b₁ b₂)
-  ff⇒x≡yᵇ (holdsᶠ _ p₁) (holdsᶠ _ p₂) rewrite not-t⇒f p₁ | not-t⇒f p₂ = holdsᶠ _ refl
+  ff⇒x≡yᵇ {false} {false} (holdsᶠ _ _) (holdsᶠ _ _) = holdsᶠ _ refl
 
   -- LFSC: pred_refl_pos
   t⇒x≡xᵇ : ∀ {b} → Holdsᶠ (appᵇ b) → Holdsᶠ (≡ᵇ b b)
@@ -282,17 +286,45 @@ module Rules (env : Env) where
 
   -- LFSC: pred_not_iff_f
   ¬f≡x⇒t≡xᵇ : ∀ {b} → Holdsᶠ (notᶠ (iffᶠ falseᶠ (appᵇ b))) → Holdsᶠ (≡ᵇ true b)
-  ¬f≡x⇒t≡xᵇ {true} (holdsᶠ _ refl) = holdsᶠ _ refl
+  ¬f≡x⇒t≡xᵇ {true} (holdsᶠ _ _) = holdsᶠ _ refl
 
   -- LFSC: pred_not_iff_f_2
   ¬x≡f⇒x≡tᵇ : ∀ {b} → Holdsᶠ (notᶠ (iffᶠ (appᵇ b) falseᶠ)) → Holdsᶠ (≡ᵇ b true)
-  ¬x≡f⇒x≡tᵇ {true} (holdsᶠ _ refl) = holdsᶠ _ refl
+  ¬x≡f⇒x≡tᵇ {true} (holdsᶠ _ _) = holdsᶠ _ refl
+
+  -- LFSC: pred_not_iff_t
+  ¬t≡x⇒f≡xᵇ : ∀ {b} → Holdsᶠ (notᶠ (iffᶠ trueᶠ (appᵇ b))) → Holdsᶠ (≡ᵇ false b)
+  ¬t≡x⇒f≡xᵇ {false} (holdsᶠ _ _) = holdsᶠ _ refl
+
+  -- LFSC: pred_not_iff_t_2
+  ¬x≡t⇒xfxᵇ : ∀ {b} → Holdsᶠ (notᶠ (iffᶠ (appᵇ b) trueᶠ)) → Holdsᶠ (≡ᵇ b false)
+  ¬x≡t⇒xfxᵇ {false} (holdsᶠ _ _) = holdsᶠ _ refl
+
+  -- LFSC: pred_iff_f
+  f≡x⇒f≡xᵇ : ∀ {b} → Holdsᶠ (iffᶠ falseᶠ (appᵇ b)) → Holdsᶠ (≡ᵇ false b)
+  f≡x⇒f≡xᵇ {false} (holdsᶠ _ _) = holdsᶠ _ refl
+
+  -- LFSC: pred_iff_f_2
+  x≡f⇒x≡fᵇ : ∀ {b} → Holdsᶠ (iffᶠ (appᵇ b) falseᶠ) → Holdsᶠ (≡ᵇ b false)
+  x≡f⇒x≡fᵇ {false} (holdsᶠ _ _) = holdsᶠ _ refl
+
+  -- LFSC: pred_iff_t
+  t≡x⇒t≡xᵇ : ∀ {b} → Holdsᶠ (iffᶠ trueᶠ (appᵇ b)) → Holdsᶠ (≡ᵇ true b)
+  t≡x⇒t≡xᵇ {true} (holdsᶠ _ _) = holdsᶠ _ refl
+
+  -- LFSC: pred_iff_t_2
+  x≡t⇒x≡tᵇ : ∀ {b} → Holdsᶠ (iffᶠ (appᵇ b) trueᶠ) → Holdsᶠ (≡ᵇ b true)
+  x≡t⇒x≡tᵇ {true} (holdsᶠ _ _) = holdsᶠ _ refl
 
   -- LFSC: atom
   data Atom : Var → Formula → Set where
     atom : (v : Var) → (f : Formula) → evalᵛ env v ≡ evalᶠ f → Atom v f
 
+  -- XXX - cover bvatom
+
   -- LFSC: decl_atom - replaced with concrete assignments to vᵢ and aᵢ
+
+  -- XXX - cover decl_bvatom
 
   -- LFSC: clausify_form
   clausi : ∀ {f v} → Atom v f → Holdsᶠ f → Holdsᶜ (pos v ∷ [])
@@ -316,9 +348,17 @@ module Rules (env : Env) where
   mpᶠ : ∀ {f} → Holdsᶠ f → (Holdsᶠ f → Holdsᶜ []) → Holdsᶜ []
   mpᶠ {f} h fn = fn h
 
+  -- LFSC: iff_symm
+  x-iff-x : ∀ {f} → Holdsᶠ (iffᶠ f f)
+  x-iff-x {f} = holdsᶠ (iffᶠ f f) (x⇔ᵇx (evalᶠ f))
+
   -- LFSC: contra
   contra : ∀ {f} → Holdsᶠ f → Holdsᶠ (notᶠ f) → Holdsᶠ falseᶠ
   contra {f} (holdsᶠ .f h₁) (holdsᶠ .(notᶠ f) h₂) = contradiction (not-t⇒f h₂) (not-¬ h₁)
+
+  -- LFSC: truth
+  truth : Holdsᶠ trueᶠ
+  truth = holdsᶠ trueᶠ refl
 
   holds⇒eval : ∀ {f c} → (Holdsᶠ f → Holdsᶜ c) → evalᶠ f ≡ true → evalᶜ c ≡ true
   holds⇒eval {f} {c} fn e with fn (holdsᶠ f e)
