@@ -104,100 +104,100 @@ propᶠ (witᶠ {P} _) = P
 proveᵇ : ∀ f → evalᶠ f ≡ true → propᵇ f
 proveᵇ _ p = subst T (sym p) tt
 
-proveᶠ : ∀ f → evalᶠ f ≡ true → propᶠ f
-proveᶠ-¬ : ∀ f → evalᶠ f ≡ false → ¬ propᶠ f
+proveᵗ : ∀ f → evalᶠ f ≡ true → propᶠ f
+proveᵗ-¬ : ∀ f → evalᶠ f ≡ false → ¬ propᶠ f
 
-proveᶠ trueᶠ p = tt
+proveᵗ trueᶠ p = tt
 
-proveᶠ (notᶠ f) p with evalᶠ f | inspect evalᶠ f
-proveᶠ (notᶠ f) () | true  | _
-proveᶠ (notᶠ f) _  | false | [ eq ] = proveᶠ-¬ f eq
+proveᵗ (notᶠ f) p with evalᶠ f | inspect evalᶠ f
+proveᵗ (notᶠ f) () | true  | _
+proveᵗ (notᶠ f) _  | false | [ eq ] = proveᵗ-¬ f eq
 
-proveᶠ (andᶠ f₁ f₂) p  with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
-proveᶠ (andᶠ f₁ f₂) _  | true  | [ eq₁ ] | true  | [ eq₂ ] = proveᶠ f₁ eq₁ , proveᶠ f₂ eq₂
-proveᶠ (andᶠ f₁ f₂) () | true  | _       | false | _
-proveᶠ (andᶠ f₁ f₂) () | false | _       | true  | _
-proveᶠ (andᶠ f₁ f₂) () | false | _       | false | _
+proveᵗ (andᶠ f₁ f₂) p  with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+proveᵗ (andᶠ f₁ f₂) _  | true  | [ eq₁ ] | true  | [ eq₂ ] = proveᵗ f₁ eq₁ , proveᵗ f₂ eq₂
+proveᵗ (andᶠ f₁ f₂) () | true  | _       | false | _
+proveᵗ (andᶠ f₁ f₂) () | false | _       | true  | _
+proveᵗ (andᶠ f₁ f₂) () | false | _       | false | _
 
-proveᶠ (orᶠ f₁ f₂) p  with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
-proveᶠ (orᶠ f₁ f₂) _  | true  | [ eq₁ ] | _     | _       = inj₁ (proveᶠ f₁ eq₁)
-proveᶠ (orᶠ f₁ f₂) _  | false | _       | true  | [ eq₂ ] = inj₂ (proveᶠ f₂ eq₂)
-proveᶠ (orᶠ f₁ f₂) () | false | _       | false | _
+proveᵗ (orᶠ f₁ f₂) p  with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+proveᵗ (orᶠ f₁ f₂) _  | true  | [ eq₁ ] | _     | _       = inj₁ (proveᵗ f₁ eq₁)
+proveᵗ (orᶠ f₁ f₂) _  | false | _       | true  | [ eq₂ ] = inj₂ (proveᵗ f₂ eq₂)
+proveᵗ (orᶠ f₁ f₂) () | false | _       | false | _
 
-proveᶠ (implᶠ f₁ f₂) p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
-proveᶠ (implᶠ f₁ f₂) _  | true  | [ eq₁ ] | true  | [ eq₂ ] = λ _ → proveᶠ f₂ eq₂
-proveᶠ (implᶠ f₁ f₂) () | true  | _       | false | _
+proveᵗ (implᶠ f₁ f₂) p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+proveᵗ (implᶠ f₁ f₂) _  | true  | [ eq₁ ] | true  | [ eq₂ ] = λ _ → proveᵗ f₂ eq₂
+proveᵗ (implᶠ f₁ f₂) () | true  | _       | false | _
 
-proveᶠ (implᶠ f₁ f₂) _  | false | [ eq₁ ] | _     | _       =
-  λ x → contradiction x (proveᶠ-¬ f₁ eq₁)
+proveᵗ (implᶠ f₁ f₂) _  | false | [ eq₁ ] | _     | _       =
+  λ x → contradiction x (proveᵗ-¬ f₁ eq₁)
 
-proveᶠ (iffᶠ f₁ f₂) p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
-proveᶠ (iffᶠ f₁ f₂) _  | true  | [ eq₁ ] | true  | [ eq₂ ] =
+proveᵗ (iffᶠ f₁ f₂) p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+proveᵗ (iffᶠ f₁ f₂) _  | true  | [ eq₁ ] | true  | [ eq₂ ] =
   record {
-    lr = λ _ → proveᶠ f₂ eq₂ ;
-    rl = λ _ → proveᶠ f₁ eq₁
+    lr = λ _ → proveᵗ f₂ eq₂ ;
+    rl = λ _ → proveᵗ f₁ eq₁
   }
 
-proveᶠ (iffᶠ f₁ f₂) () | true  | _       | false | _
-proveᶠ (iffᶠ f₁ f₂) () | false | _       | true  | _
+proveᵗ (iffᶠ f₁ f₂) () | true  | _       | false | _
+proveᵗ (iffᶠ f₁ f₂) () | false | _       | true  | _
 
-proveᶠ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | false | [ eq₂ ] =
+proveᵗ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | false | [ eq₂ ] =
   record {
-    lr = λ x → contradiction x (proveᶠ-¬ f₁ eq₁) ;
-    rl = λ x → contradiction x (proveᶠ-¬ f₂ eq₂)
+    lr = λ x → contradiction x (proveᵗ-¬ f₁ eq₁) ;
+    rl = λ x → contradiction x (proveᵗ-¬ f₂ eq₂)
   }
 
-proveᶠ (appᶠ b) refl = tt
-proveᶠ (witᶠ w) refl = w
+proveᵗ (appᶠ b) refl = tt
+proveᵗ (witᶠ w) refl = w
 
-proveᶠ-¬ falseᶠ p = id
+proveᵗ-¬ falseᶠ p = id
 
-proveᶠ-¬ (notᶠ f) p with evalᶠ f | inspect evalᶠ f
-proveᶠ-¬ (notᶠ f) _  | true  | [ eq ] = λ x → x (proveᶠ f eq)
-proveᶠ-¬ (notᶠ f) () | false | _
+proveᵗ-¬ (notᶠ f) p with evalᶠ f | inspect evalᶠ f
+proveᵗ-¬ (notᶠ f) _  | true  | [ eq ] = λ x → x (proveᵗ f eq)
+proveᵗ-¬ (notᶠ f) () | false | _
 
-proveᶠ-¬ (andᶠ f₁ f₂) p  with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
-proveᶠ-¬ (andᶠ f₁ f₂) () | true  | [ eq₁ ] | true  | [ eq₂ ]
+proveᵗ-¬ (andᶠ f₁ f₂) p  with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+proveᵗ-¬ (andᶠ f₁ f₂) () | true  | [ eq₁ ] | true  | [ eq₂ ]
 
-proveᶠ-¬ (andᶠ f₁ f₂) _  | true  | [ eq₁ ] | false | [ eq₂ ] =
-  λ { (_ , p₂) → contradiction p₂ (proveᶠ-¬ f₂ eq₂) }
+proveᵗ-¬ (andᶠ f₁ f₂) _  | true  | [ eq₁ ] | false | [ eq₂ ] =
+  λ { (_ , p₂) → contradiction p₂ (proveᵗ-¬ f₂ eq₂) }
 
-proveᶠ-¬ (andᶠ f₁ f₂) _  | false | [ eq₁ ] | true  | [ eq₂ ] =
-  λ { (p₁ , _) → contradiction p₁ (proveᶠ-¬ f₁ eq₁) }
+proveᵗ-¬ (andᶠ f₁ f₂) _  | false | [ eq₁ ] | true  | [ eq₂ ] =
+  λ { (p₁ , _) → contradiction p₁ (proveᵗ-¬ f₁ eq₁) }
 
-proveᶠ-¬ (andᶠ f₁ f₂) _  | false | [ eq₁ ] | false | [ eq₂ ] =
-  λ { (p₁ , _) → contradiction p₁ (proveᶠ-¬ f₁ eq₁) }
+proveᵗ-¬ (andᶠ f₁ f₂) _  | false | [ eq₁ ] | false | [ eq₂ ] =
+  λ { (p₁ , _) → contradiction p₁ (proveᵗ-¬ f₁ eq₁) }
 
-proveᶠ-¬ (orᶠ f₁ f₂) p  with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
-proveᶠ-¬ (orᶠ f₁ f₂) () | true  | _       | _     | _
-proveᶠ-¬ (orᶠ f₁ f₂) () | false | _       | true  | _
+proveᵗ-¬ (orᶠ f₁ f₂) p  with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+proveᵗ-¬ (orᶠ f₁ f₂) () | true  | _       | _     | _
+proveᵗ-¬ (orᶠ f₁ f₂) () | false | _       | true  | _
 
-proveᶠ-¬ (orᶠ f₁ f₂) _  | false | [ eq₁ ] | false | [ eq₂ ] =
+proveᵗ-¬ (orᶠ f₁ f₂) _  | false | [ eq₁ ] | false | [ eq₂ ] =
   λ {
-    (inj₁ p₁) → contradiction p₁ (proveᶠ-¬ f₁ eq₁) ;
-    (inj₂ p₂) → contradiction p₂ (proveᶠ-¬ f₂ eq₂)
+    (inj₁ p₁) → contradiction p₁ (proveᵗ-¬ f₁ eq₁) ;
+    (inj₂ p₂) → contradiction p₂ (proveᵗ-¬ f₂ eq₂)
   }
 
-proveᶠ-¬ (implᶠ f₁ f₂) p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
-proveᶠ-¬ (implᶠ f₁ f₂) () | true  | _       | true  | _
+proveᵗ-¬ (implᶠ f₁ f₂) p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+proveᵗ-¬ (implᶠ f₁ f₂) () | true  | _       | true  | _
 
-proveᶠ-¬ (implᶠ f₁ f₂) _  | true  | [ eq₁ ] | false | [ eq₂ ] =
-  λ fn → (proveᶠ-¬ f₂ eq₂ ∘ fn) (proveᶠ f₁ eq₁)
+proveᵗ-¬ (implᶠ f₁ f₂) _  | true  | [ eq₁ ] | false | [ eq₂ ] =
+  λ fn → (proveᵗ-¬ f₂ eq₂ ∘ fn) (proveᵗ f₁ eq₁)
 
-proveᶠ-¬ (implᶠ f₁ f₂) () | false | _       | _     | _
+proveᵗ-¬ (implᶠ f₁ f₂) () | false | _       | _     | _
 
-proveᶠ-¬ (iffᶠ f₁ f₂) p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
-proveᶠ-¬ (iffᶠ f₁ f₂) () | true  | _       | true  | _
+proveᵗ-¬ (iffᶠ f₁ f₂) p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
+proveᵗ-¬ (iffᶠ f₁ f₂) () | true  | _       | true  | _
 
-proveᶠ-¬ (iffᶠ f₁ f₂) _  | true  | [ eq₁ ] | false | [ eq₂ ] =
-  λ { (iffʳ lr _) → (proveᶠ-¬ f₂ eq₂ ∘ lr) (proveᶠ f₁ eq₁) }
+proveᵗ-¬ (iffᶠ f₁ f₂) _  | true  | [ eq₁ ] | false | [ eq₂ ] =
+  λ { (iffʳ lr _) → (proveᵗ-¬ f₂ eq₂ ∘ lr) (proveᵗ f₁ eq₁) }
 
-proveᶠ-¬ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | true  | [ eq₂ ] =
-  λ { (iffʳ _ rl) → (proveᶠ-¬ f₁ eq₁ ∘ rl) (proveᶠ f₂ eq₂) }
+proveᵗ-¬ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | true  | [ eq₂ ] =
+  λ { (iffʳ _ rl) → (proveᵗ-¬ f₁ eq₁ ∘ rl) (proveᵗ f₂ eq₂) }
 
-proveᶠ-¬ (iffᶠ f₁ f₂) () | false | _       | false | _
+proveᵗ-¬ (iffᶠ f₁ f₂) () | false | _       | false | _
 
-proveᶠ-¬ (appᶠ b) refl = id
+proveᵗ-¬ (appᶠ b) refl = id
 
 -- LFSC: th_holds
 data Holdsᶠ : Formula → Set where
@@ -214,7 +214,7 @@ module Rules (env : Env) where
   ... | false | [ eq ] = contradiction (holdsᶠ (notᶠ f) (f⇒not-t eq)) (holdsᶜ-[] ∘ h)
 
   finalᶠ : (f : Formula) → (Holdsᶠ (notᶠ f) → Holdsᶜ []) → propᶠ f
-  finalᶠ f h = proveᶠ f (final f h)
+  finalᶠ f h = proveᵗ f (final f h)
 
   finalᵇ : (f : Formula) → (Holdsᶠ (notᶠ f) → Holdsᶜ []) → propᵇ f
   finalᵇ f h = proveᵇ f (final f h)
