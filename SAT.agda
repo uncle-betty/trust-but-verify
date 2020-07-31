@@ -471,4 +471,4 @@ dedup-sound {neg v′ ∷ ls} h with evalᵛ env v′ | inspect (evalᵛ env) v�
 ... | true  | [ eq ] = dedup-add-f-≡ {neg v′} {ls} {empty} (t⇒not-f eq) (dedup-sound {ls} h)
 ... | false | _      = refl
 
--- XXX - add cnf_holds, cnfn_proof, cnfc_proof
+-- XXX - cover cnf_holds, cnfn_proof, cnfc_proof

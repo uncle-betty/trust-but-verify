@@ -10,7 +10,8 @@ open import Data.Unit using (⊤ ; tt)
 
 open import Function using (id ; _∘_ ; _$_ ; _∋_)
 
-open import Relation.Binary.PropositionalEquality using (_≡_ ; refl ; subst ; sym ; inspect ; [_])
+open import Relation.Binary.PropositionalEquality
+  using (_≡_ ; _≢_ ; refl ; subst ; sym ; inspect ; [_])
 
 open import Relation.Nullary using (¬_)
 open import Relation.Nullary.Negation using (contradiction)
@@ -46,8 +47,12 @@ data Formula where
   -- LFSC: iff
   iffᶠ   : formula-op₂
 
+  -- LFSC: = (Bool sort)
+  ≡ᵇ     : Bool → Bool → Formula
+
   -- LFSC: p_app
-  appᶠ   : Bool → Formula
+  appᵇ   : Bool → Formula
+
   -- extension to opaquely wrap an existing witness for an arbitrary proposition
   witᶠ   : {P : Set} → P → Formula
 
@@ -72,6 +77,14 @@ true  ⇔ᵇ true  = true
 false ⇔ᵇ false = true
 _     ⇔ᵇ _     = false
 
+⇔ᵇ≡t⇒≡ : ∀ b₁ b₂ → (b₁ ⇔ᵇ b₂) ≡ true → b₁ ≡ b₂
+⇔ᵇ≡t⇒≡ true true refl = refl
+⇔ᵇ≡t⇒≡ false false refl = refl
+
+⇔ᵇ≡f⇒≢ : ∀ b₁ b₂ → (b₁ ⇔ᵇ b₂) ≡ false → b₁ ≢ b₂
+⇔ᵇ≡f⇒≢ true false p = λ ()
+⇔ᵇ≡f⇒≢ false true p = λ ()
+
 evalᶠ : Formula → Bool
 evalᶠ trueᶠ = true
 evalᶠ falseᶠ = false
@@ -82,7 +95,9 @@ evalᶠ (orᶠ f₁ f₂) = evalᶠ f₁ ∨ evalᶠ f₂
 evalᶠ (implᶠ f₁ f₂) = evalᶠ f₁ →ᵇ evalᶠ f₂
 evalᶠ (iffᶠ f₁ f₂) = evalᶠ f₁ ⇔ᵇ evalᶠ f₂
 
-evalᶠ (appᶠ b) = b
+evalᶠ (≡ᵇ b₁ b₂) = b₁ ⇔ᵇ b₂
+evalᶠ (appᵇ b) = b
+
 evalᶠ (witᶠ _) = true
 
 propᵇ : Formula → Set
@@ -101,18 +116,16 @@ propᶠ (orᶠ f₁ f₂) = propᶠ f₁ ⊎ propᶠ f₂
 propᶠ (implᶠ f₁ f₂) = propᶠ f₁ → propᶠ f₂
 propᶠ (iffᶠ f₁ f₂) = propᶠ f₁ ⇔ propᶠ f₂
 
-propᶠ (appᶠ b) = T b
+propᶠ (≡ᵇ b₁ b₂) = b₁ ≡ b₂
+propᶠ (appᵇ b) = T b
+
 propᶠ (witᶠ {P} _) = P
 
 proveᵇ : ∀ f → evalᶠ f ≡ true → propᵇ f
 proveᵇ _ p = subst T (sym p) tt
 
 proveᵉ : ∀ f₁ f₂ → evalᶠ (iffᶠ f₁ f₂) ≡ true → propᵉ f₁ f₂
-proveᵉ f₁ f₂ p with evalᶠ f₁ | evalᶠ f₂
-proveᵉ f₁ f₂ _  | true  | true  = refl
-proveᵉ f₁ f₂ () | true  | false
-proveᵉ f₁ f₂ () | false | true
-proveᵉ f₁ f₂ _  | false | false = refl
+proveᵉ f₁ f₂ p = ⇔ᵇ≡t⇒≡ (evalᶠ f₁) (evalᶠ f₂) p
 
 proveᵗ : ∀ f → evalᶠ f ≡ true → propᶠ f
 proveᵗ-¬ : ∀ f → evalᶠ f ≡ false → ¬ propᶠ f
@@ -157,7 +170,9 @@ proveᵗ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | false | [ eq₂ ] =
     rl = λ x → contradiction x (proveᵗ-¬ f₂ eq₂)
   }
 
-proveᵗ (appᶠ b) refl = tt
+proveᵗ (≡ᵇ b₁ b₂) p = ⇔ᵇ≡t⇒≡ b₁ b₂ p
+proveᵗ (appᵇ b) refl = tt
+
 proveᵗ (witᶠ w) refl = w
 
 proveᵗ-¬ falseᶠ p = id
@@ -207,7 +222,8 @@ proveᵗ-¬ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | true  | [ eq₂ ] =
 
 proveᵗ-¬ (iffᶠ f₁ f₂) () | false | _       | false | _
 
-proveᵗ-¬ (appᶠ b) refl = id
+proveᵗ-¬ (≡ᵇ b₁ b₂) p = ⇔ᵇ≡f⇒≢ b₁ b₂ p
+proveᵗ-¬ (appᵇ b) refl = id
 
 -- LFSC: th_holds
 data Holdsᶠ : Formula → Set where
@@ -233,6 +249,44 @@ module Rules (env : Env) where
 
   finalᵉ : (f₁ f₂ : Formula) → (Holdsᶠ (notᶠ (iffᶠ f₁ f₂)) → Holdsᶜ []) → evalᶠ f₁ ≡ evalᶠ f₂
   finalᵉ f₁ f₂ h = proveᵉ f₁ f₂ (final (iffᶠ f₁ f₂) h)
+
+  -- LFSC: t_t_neq_f
+  t≢fᵇ : Holdsᶠ (notᶠ (≡ᵇ true false))
+  t≢fᵇ = holdsᶠ _ refl
+
+  -- LFSC: pred_eq_t
+  x≡tᵇ : ∀ {b} → Holdsᶠ (appᵇ b) → Holdsᶠ (≡ᵇ b true)
+  x≡tᵇ (holdsᶠ _ refl) = holdsᶠ _ refl
+
+  -- LFSC: pred_eq_f
+  x≡fᵇ : ∀ {b} → Holdsᶠ (notᶠ (appᵇ b)) → Holdsᶠ (≡ᵇ b false)
+  x≡fᵇ (holdsᶠ _ p) rewrite not-t⇒f p = holdsᶠ _ refl
+
+  -- XXX - what does f_to_b do?
+
+  -- LFSC: true_preds_equal
+  tt⇒x≡yᵇ : ∀ {b₁ b₂} → Holdsᶠ (appᵇ b₁) → Holdsᶠ (appᵇ b₂) → Holdsᶠ (≡ᵇ b₁ b₂)
+  tt⇒x≡yᵇ (holdsᶠ _ refl) (holdsᶠ _ refl) = holdsᶠ _ refl
+
+  -- LFSC: false_preds_equal
+  ff⇒x≡yᵇ : ∀ {b₁ b₂} → Holdsᶠ (notᶠ (appᵇ b₁)) → Holdsᶠ (notᶠ (appᵇ b₂)) → Holdsᶠ (≡ᵇ b₁ b₂)
+  ff⇒x≡yᵇ (holdsᶠ _ p₁) (holdsᶠ _ p₂) rewrite not-t⇒f p₁ | not-t⇒f p₂ = holdsᶠ _ refl
+
+  -- LFSC: pred_refl_pos
+  t⇒x≡xᵇ : ∀ {b} → Holdsᶠ (appᵇ b) → Holdsᶠ (≡ᵇ b b)
+  t⇒x≡xᵇ (holdsᶠ _ refl) = holdsᶠ _ refl
+
+  -- LFSC: pred_refl_neg
+  f⇒x≡xᵇ : ∀ {b} → Holdsᶠ (notᶠ (appᵇ b)) → Holdsᶠ (≡ᵇ b b)
+  f⇒x≡xᵇ (holdsᶠ _ p) rewrite not-t⇒f p = holdsᶠ _ refl
+
+  -- LFSC: pred_not_iff_f
+  ¬f≡x⇒t≡xᵇ : ∀ {b} → Holdsᶠ (notᶠ (iffᶠ falseᶠ (appᵇ b))) → Holdsᶠ (≡ᵇ true b)
+  ¬f≡x⇒t≡xᵇ {true} (holdsᶠ _ refl) = holdsᶠ _ refl
+
+  -- LFSC: pred_not_iff_f_2
+  ¬x≡f⇒x≡tᵇ : ∀ {b} → Holdsᶠ (notᶠ (iffᶠ (appᵇ b) falseᶠ)) → Holdsᶠ (≡ᵇ b true)
+  ¬x≡f⇒x≡tᵇ {true} (holdsᶠ _ refl) = holdsᶠ _ refl
 
   -- LFSC: atom
   data Atom : Var → Formula → Set where
