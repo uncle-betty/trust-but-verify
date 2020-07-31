@@ -51,6 +51,27 @@ data Formula where
   -- extension to opaquely wrap an existing witness for an arbitrary proposition
   witᶠ   : {P : Set} → P → Formula
 
+infix 0 _⇔_
+
+record _⇔_ (P Q : Set) : Set where
+  constructor iffʳ
+  field
+    lr : P → Q
+    rl : Q → P
+
+infix 3 _→ᵇ_
+
+_→ᵇ_ : Bool → Bool → Bool
+true  →ᵇ b = b
+false →ᵇ _ = true
+
+infix 3 _⇔ᵇ_
+
+_⇔ᵇ_ : Bool → Bool → Bool
+true  ⇔ᵇ true  = true
+false ⇔ᵇ false = true
+_     ⇔ᵇ _     = false
+
 evalᶠ : Formula → Bool
 evalᶠ trueᶠ = true
 evalᶠ falseᶠ = false
@@ -58,11 +79,14 @@ evalᶠ falseᶠ = false
 evalᶠ (notᶠ f) = not (evalᶠ f)
 evalᶠ (andᶠ f₁ f₂) = evalᶠ f₁ ∧ evalᶠ f₂
 evalᶠ (orᶠ f₁ f₂) = evalᶠ f₁ ∨ evalᶠ f₂
-evalᶠ (implᶠ f₁ f₂) = not (evalᶠ f₁) ∨ evalᶠ f₂
-evalᶠ (iffᶠ f₁ f₂) = (not (evalᶠ f₁) ∨ evalᶠ f₂) ∧ (not (evalᶠ f₂) ∨ evalᶠ f₁)
+evalᶠ (implᶠ f₁ f₂) = evalᶠ f₁ →ᵇ evalᶠ f₂
+evalᶠ (iffᶠ f₁ f₂) = evalᶠ f₁ ⇔ᵇ evalᶠ f₂
 
 evalᶠ (appᶠ b) = b
 evalᶠ (witᶠ _) = true
+
+propᵇ : Formula → Set
+propᵇ = T ∘ evalᶠ
 
 propᶠ : Formula → Set
 propᶠ trueᶠ  = ⊤
@@ -72,10 +96,13 @@ propᶠ (notᶠ f) = ¬ propᶠ f
 propᶠ (andᶠ f₁ f₂) = propᶠ f₁ × propᶠ f₂
 propᶠ (orᶠ f₁ f₂) = propᶠ f₁ ⊎ propᶠ f₂
 propᶠ (implᶠ f₁ f₂) = propᶠ f₁ → propᶠ f₂
-propᶠ (iffᶠ f₁ f₂) = (propᶠ f₁ → propᶠ f₂) × (propᶠ f₂ → propᶠ f₁)
+propᶠ (iffᶠ f₁ f₂) = propᶠ f₁ ⇔ propᶠ f₂
 
 propᶠ (appᶠ b) = T b
 propᶠ (witᶠ {P} _) = P
+
+proveᵇ : ∀ f → evalᶠ f ≡ true → propᵇ f
+proveᵇ _ p = subst T (sym p) tt
 
 proveᶠ : ∀ f → evalᶠ f ≡ true → propᶠ f
 proveᶠ-¬ : ∀ f → evalᶠ f ≡ false → ¬ propᶠ f
@@ -106,13 +133,19 @@ proveᶠ (implᶠ f₁ f₂) _  | false | [ eq₁ ] | _     | _       =
 
 proveᶠ (iffᶠ f₁ f₂) p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
 proveᶠ (iffᶠ f₁ f₂) _  | true  | [ eq₁ ] | true  | [ eq₂ ] =
-  (λ _ → proveᶠ f₂ eq₂) , λ _ → proveᶠ f₁ eq₁
+  record {
+    lr = λ _ → proveᶠ f₂ eq₂ ;
+    rl = λ _ → proveᶠ f₁ eq₁
+  }
 
 proveᶠ (iffᶠ f₁ f₂) () | true  | _       | false | _
 proveᶠ (iffᶠ f₁ f₂) () | false | _       | true  | _
 
 proveᶠ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | false | [ eq₂ ] =
-  (λ x → contradiction x (proveᶠ-¬ f₁ eq₁)) , λ x → contradiction x (proveᶠ-¬ f₂ eq₂)
+  record {
+    lr = λ x → contradiction x (proveᶠ-¬ f₁ eq₁) ;
+    rl = λ x → contradiction x (proveᶠ-¬ f₂ eq₂)
+  }
 
 proveᶠ (appᶠ b) refl = tt
 proveᶠ (witᶠ w) refl = w
@@ -157,10 +190,10 @@ proveᶠ-¬ (iffᶠ f₁ f₂) p with evalᶠ f₁ | inspect evalᶠ f₁ | eval
 proveᶠ-¬ (iffᶠ f₁ f₂) () | true  | _       | true  | _
 
 proveᶠ-¬ (iffᶠ f₁ f₂) _  | true  | [ eq₁ ] | false | [ eq₂ ] =
-  λ { (fn , _) → (proveᶠ-¬ f₂ eq₂ ∘ fn) (proveᶠ f₁ eq₁) }
+  λ { (iffʳ lr _) → (proveᶠ-¬ f₂ eq₂ ∘ lr) (proveᶠ f₁ eq₁) }
 
 proveᶠ-¬ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | true  | [ eq₂ ] =
-  λ { (_ , fn) → (proveᶠ-¬ f₁ eq₁ ∘ fn) (proveᶠ f₂ eq₂) }
+  λ { (iffʳ _ rl) → (proveᶠ-¬ f₁ eq₁ ∘ rl) (proveᶠ f₂ eq₂) }
 
 proveᶠ-¬ (iffᶠ f₁ f₂) () | false | _       | false | _
 
@@ -175,10 +208,16 @@ module Rules (env : Env) where
   open import SAT env
     using (pos ; neg ; Holdsᶜ ; holdsᶜ ; holdsᶜ-[] ; evalᶜ ; not-t⇒f ; f⇒not-t)
 
-  proofᶠ : (f : Formula) → (Holdsᶠ (notᶠ f) → Holdsᶜ []) → propᶠ f
-  proofᶠ f h with evalᶠ f | inspect evalᶠ f
-  ... | true  | [ eq ] = proveᶠ f eq
+  final : (f : Formula) → (Holdsᶠ (notᶠ f) → Holdsᶜ []) → evalᶠ f ≡ true
+  final f h with evalᶠ f | inspect evalᶠ f
+  ... | true  | [ eq ] = refl
   ... | false | [ eq ] = contradiction (holdsᶠ (notᶠ f) (f⇒not-t eq)) (holdsᶜ-[] ∘ h)
+
+  finalᶠ : (f : Formula) → (Holdsᶠ (notᶠ f) → Holdsᶜ []) → propᶠ f
+  finalᶠ f h = proveᶠ f (final f h)
+
+  finalᵇ : (f : Formula) → (Holdsᶠ (notᶠ f) → Holdsᶜ []) → propᵇ f
+  finalᵇ f h = proveᵇ f (final f h)
 
   -- LFSC: atom
   data Atom : Var → Formula → Set where
