@@ -4,7 +4,7 @@ open import Data.Bool using (Bool ; T)
 open import Data.List using ([] ; _∷_)
 open import Data.Product using (_×_)
 open import Function using (id ; _$_)
-open import Relation.Binary.PropositionalEquality using (refl)
+open import Relation.Binary.PropositionalEquality using (_≡_ ; refl)
 
 open import Env using (var ; ε ; assignᵛ)
 open import SMT as S
@@ -20,7 +20,11 @@ open import SAT env
     resolve-r ; resolve-r⁺ ; resolve-q ; resolve-q⁺ ; mp ; simpl-mp
   )
 
-open S.Rules env using (Atom ; atom ; mpᶠ ; assum ; assum-¬ ; clausi-f ; contra ; finalᶠ ; finalᵇ)
+open S.Rules env
+  using (
+    Atom ; atom ; mpᶠ ; assum ; assum-¬ ; clausi-f ; contra ;
+    finalᶠ ; finalᵇ ; finalᵉ
+  )
 
 -- SAT test #1
 
@@ -70,3 +74,6 @@ prop₁ x = finalᶠ (iffᶠ (appᶠ x) (appᶠ x)) (smt₁ x (holdsᶠ trueᶠ 
 
 bool₁ : (x : Bool) → T (x ⇔ᵇ x)
 bool₁ x = finalᵇ (iffᶠ (appᶠ x) (appᶠ x)) (smt₁ x (holdsᶠ trueᶠ refl))
+
+equ₁ : (x : Bool) → x ≡ x
+equ₁ x = finalᵉ (appᶠ x) (appᶠ x) (smt₁ x (holdsᶠ trueᶠ refl))

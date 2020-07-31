@@ -88,6 +88,9 @@ evalᶠ (witᶠ _) = true
 propᵇ : Formula → Set
 propᵇ = T ∘ evalᶠ
 
+propᵉ : Formula → Formula → Set
+propᵉ f₁ f₂ = evalᶠ f₁ ≡ evalᶠ f₂
+
 propᶠ : Formula → Set
 propᶠ trueᶠ  = ⊤
 propᶠ falseᶠ = ⊥
@@ -103,6 +106,13 @@ propᶠ (witᶠ {P} _) = P
 
 proveᵇ : ∀ f → evalᶠ f ≡ true → propᵇ f
 proveᵇ _ p = subst T (sym p) tt
+
+proveᵉ : ∀ f₁ f₂ → evalᶠ (iffᶠ f₁ f₂) ≡ true → propᵉ f₁ f₂
+proveᵉ f₁ f₂ p with evalᶠ f₁ | evalᶠ f₂
+proveᵉ f₁ f₂ _  | true  | true  = refl
+proveᵉ f₁ f₂ () | true  | false
+proveᵉ f₁ f₂ () | false | true
+proveᵉ f₁ f₂ _  | false | false = refl
 
 proveᵗ : ∀ f → evalᶠ f ≡ true → propᶠ f
 proveᵗ-¬ : ∀ f → evalᶠ f ≡ false → ¬ propᶠ f
@@ -213,11 +223,16 @@ module Rules (env : Env) where
   ... | true  | [ eq ] = refl
   ... | false | [ eq ] = contradiction (holdsᶠ (notᶠ f) (f⇒not-t eq)) (holdsᶜ-[] ∘ h)
 
+  -- XXX - unify the following three? for mixed formulas like (a ≡ b) ⊎ T (c ⇔ᵇ d)
+
   finalᶠ : (f : Formula) → (Holdsᶠ (notᶠ f) → Holdsᶜ []) → propᶠ f
   finalᶠ f h = proveᵗ f (final f h)
 
   finalᵇ : (f : Formula) → (Holdsᶠ (notᶠ f) → Holdsᶜ []) → propᵇ f
   finalᵇ f h = proveᵇ f (final f h)
+
+  finalᵉ : (f₁ f₂ : Formula) → (Holdsᶠ (notᶠ (iffᶠ f₁ f₂)) → Holdsᶜ []) → evalᶠ f₁ ≡ evalᶠ f₂
+  finalᵉ f₁ f₂ h = proveᵉ f₁ f₂ (final (iffᶠ f₁ f₂) h)
 
   -- LFSC: atom
   data Atom : Var → Formula → Set where
