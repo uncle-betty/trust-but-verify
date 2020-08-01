@@ -259,12 +259,12 @@ module Rules (env : Env) where
   t≢fᵇ = holdsᶠ _ refl
 
   -- LFSC: pred_eq_t
-  x≡tᵇ : ∀ {b} → Holdsᶠ (appᵇ b) → Holdsᶠ (≡ᵇ b true)
-  x≡tᵇ {true} (holdsᶠ _ _) = holdsᶠ _ refl
+  t⇒x≡tᵇ : ∀ {b} → Holdsᶠ (appᵇ b) → Holdsᶠ (≡ᵇ b true)
+  t⇒x≡tᵇ {true} (holdsᶠ _ _) = holdsᶠ _ refl
 
   -- LFSC: pred_eq_f
-  x≡fᵇ : ∀ {b} → Holdsᶠ (notᶠ (appᵇ b)) → Holdsᶠ (≡ᵇ b false)
-  x≡fᵇ {false} (holdsᶠ _ _) = holdsᶠ _ refl
+  f⇒x≡fᵇ : ∀ {b} → Holdsᶠ (notᶠ (appᵇ b)) → Holdsᶠ (≡ᵇ b false)
+  f⇒x≡fᵇ {false} (holdsᶠ _ _) = holdsᶠ _ refl
 
   -- XXX - what does f_to_b do?
 
@@ -330,15 +330,13 @@ module Rules (env : Env) where
   clausi : ∀ {f v} → Atom v f → Holdsᶠ f → Holdsᶜ (pos v ∷ [])
 
   clausi {f} {v} (atom .v .f a) (holdsᶠ .f h)
-    rewrite h
-    = holdsᶜ (pos v ∷ []) (subst (λ # → # ∨ false ≡ true) (sym a) refl)
+    rewrite h = holdsᶜ (pos v ∷ []) (subst (λ # → # ∨ false ≡ true) (sym a) refl)
 
   -- LFSC: clausify_form_not
   clausi-¬ : ∀ {f v} → Atom v f → Holdsᶠ (notᶠ f) → Holdsᶜ (neg v ∷ [])
 
   clausi-¬ {f} {v} (atom .v .f a) (holdsᶠ .(notᶠ f) h)
-    rewrite not-t⇒f h
-    = holdsᶜ (neg v ∷ []) (subst (λ # → not # ∨ false ≡ true) (sym a) refl)
+    rewrite not-t⇒f h = holdsᶜ (neg v ∷ []) (subst (λ # → not # ∨ false ≡ true) (sym a) refl)
 
   -- LFSC: clausify_false
   clausi-f : Holdsᶠ falseᶠ → Holdsᶜ []
@@ -349,8 +347,8 @@ module Rules (env : Env) where
   mpᶠ {f} h fn = fn h
 
   -- LFSC: iff_symm
-  x-iff-x : ∀ {f} → Holdsᶠ (iffᶠ f f)
-  x-iff-x {f} = holdsᶠ (iffᶠ f f) (x⇔ᵇx (evalᶠ f))
+  x≡ᵇx : ∀ {f} → Holdsᶠ (iffᶠ f f)
+  x≡ᵇx {f} = holdsᶠ (iffᶠ f f) (x⇔ᵇx (evalᶠ f))
 
   -- LFSC: contra
   contra : ∀ {f} → Holdsᶠ f → Holdsᶠ (notᶠ f) → Holdsᶠ falseᶠ
@@ -360,17 +358,21 @@ module Rules (env : Env) where
   truth : Holdsᶠ trueᶠ
   truth = holdsᶠ trueᶠ refl
 
-  ¬-¬-lemma : ∀ b → b ≡ not (not b)
-  ¬-¬-lemma true  = refl
-  ¬-¬-lemma false = refl
-
   -- LFSC: not_not_intro
   ¬-¬-intro : ∀ {f} → Holdsᶠ f → Holdsᶠ (notᶠ (notᶠ f))
-  ¬-¬-intro {f} (holdsᶠ _ p) = holdsᶠ _ (subst (_≡ true) (¬-¬-lemma (evalᶠ f)) p)
+  ¬-¬-intro {f} (holdsᶠ _ p) = holdsᶠ _ lem
+    where
+    lem : not (not (evalᶠ f)) ≡ true
+    lem rewrite p = refl
 
   -- LFSC: not_not_elim
   ¬-¬-elim : ∀ {f} → Holdsᶠ (notᶠ (notᶠ f)) → Holdsᶠ f
-  ¬-¬-elim {f} (holdsᶠ _ p) = holdsᶠ _ (subst (_≡ true) (sym (¬-¬-lemma (evalᶠ f))) p)
+  ¬-¬-elim {f} (holdsᶠ _ p) = holdsᶠ _ lem
+    where
+    lem : evalᶠ f ≡ true
+    lem with evalᶠ f
+    lem | true  = refl
+    lem | false = contradiction p (not-¬ refl)
 
   -- LFSC: or_elim_1
   ∨-elimˡ : ∀ {f₁ f₂} → Holdsᶠ (notᶠ f₁) → Holdsᶠ (orᶠ f₁ f₂) → Holdsᶠ f₂
@@ -378,19 +380,15 @@ module Rules (env : Env) where
 
   -- LFSC: or_elim_2
   ∨-elimʳ : ∀ {f₁ f₂} → Holdsᶠ (notᶠ f₂) → Holdsᶠ (orᶠ f₁ f₂) → Holdsᶠ f₁
-  ∨-elimʳ {f₁} (holdsᶠ _ p₁) (holdsᶠ _ p₂)
-    rewrite not-t⇒f p₁ | ∨-identityʳ (evalᶠ f₁) = holdsᶠ _ p₂
+  ∨-elimʳ {f₁} (holdsᶠ _ p₁) (holdsᶠ _ p₂) rewrite not-t⇒f p₁ | ∨-identityʳ (evalᶠ f₁) = holdsᶠ _ p₂
 
   -- LFSC: not_or_elim
   de-morgan₁ : ∀ {f₁ f₂} → Holdsᶠ (notᶠ (orᶠ f₁ f₂)) → Holdsᶠ (andᶠ (notᶠ f₁) (notᶠ f₂))
   de-morgan₁ {f₁} {f₂} (holdsᶠ _ p) = holdsᶠ _ lem
-
     where
-
     lem : not (evalᶠ f₁) ∧ not (evalᶠ f₂) ≡ true
     lem with evalᶠ f₁ | evalᶠ f₂
-    lem | true  | true  = contradiction p (not-¬ refl)
-    lem | true  | false = contradiction p (not-¬ refl)
+    lem | true  | _     = contradiction p (not-¬ refl)
     lem | false | true  = contradiction p (not-¬ refl)
     lem | false | false = refl
 
@@ -407,15 +405,39 @@ module Rules (env : Env) where
   -- LFSC: not_and_elim
   de-morgan₂ : ∀ {f₁ f₂} → Holdsᶠ (notᶠ (andᶠ f₁ f₂)) → Holdsᶠ (orᶠ (notᶠ f₁) (notᶠ f₂))
   de-morgan₂ {f₁} {f₂} (holdsᶠ _ p) = holdsᶠ _ lem
-
     where
-
     lem : not (evalᶠ f₁) ∨ not (evalᶠ f₂) ≡ true
     lem with evalᶠ f₁ | evalᶠ f₂
     lem | true  | true  = contradiction p (not-¬ refl)
     lem | true  | false = refl
-    lem | false | true  = refl
-    lem | false | false = refl
+    lem | false | _     = refl
+
+  -- LFSC: impl_intro
+  →-intro : ∀ {f₁ f₂} → Holdsᶠ f₁ → Holdsᶠ f₂ → Holdsᶠ (implᶠ f₁ f₂)
+  →-intro {f₁} {f₂} (holdsᶠ _ p₁) (holdsᶠ _ p₂) = holdsᶠ _ lem
+    where
+    lem : (evalᶠ f₁ →ᵇ evalᶠ f₂) ≡ true
+    lem rewrite p₁ | p₂ = refl
+
+  -- LFSC: impl_elim
+  →-elim : ∀ {f₁ f₂} → Holdsᶠ (implᶠ f₁ f₂) → Holdsᶠ (orᶠ (notᶠ f₁) f₂)
+  →-elim {f₁} {f₂} (holdsᶠ _ p) = holdsᶠ _ lem
+    where
+    lem : not (evalᶠ f₁) ∨ evalᶠ f₂ ≡ true
+    lem with evalᶠ f₁ | evalᶠ f₂
+    lem | true  | true  = refl
+    lem | true  | false = contradiction p (not-¬ refl)
+    lem | false | _     = refl
+
+  -- LFSC: not_impl_elim
+  ¬-→-elim : ∀ {f₁ f₂} → Holdsᶠ (notᶠ (implᶠ f₁ f₂)) → Holdsᶠ (andᶠ f₁ (notᶠ f₂))
+  ¬-→-elim {f₁} {f₂} (holdsᶠ _ p) = holdsᶠ _ lem
+    where
+    lem : evalᶠ f₁ ∧ not (evalᶠ f₂) ≡ true
+    lem with evalᶠ f₁ | evalᶠ f₂
+    lem | true  | true  = contradiction p (not-¬ refl)
+    lem | true  | false = refl
+    lem | false | _     = contradiction p (not-¬ refl)
 
   -- LFSC: ast
   assum : ∀ {v f c} → Atom v f → (Holdsᶠ f → Holdsᶜ c) → Holdsᶜ (neg v ∷ c)
