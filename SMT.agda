@@ -360,6 +360,63 @@ module Rules (env : Env) where
   truth : Holdsᶠ trueᶠ
   truth = holdsᶠ trueᶠ refl
 
+  ¬-¬-lemma : ∀ b → b ≡ not (not b)
+  ¬-¬-lemma true  = refl
+  ¬-¬-lemma false = refl
+
+  -- LFSC: not_not_intro
+  ¬-¬-intro : ∀ {f} → Holdsᶠ f → Holdsᶠ (notᶠ (notᶠ f))
+  ¬-¬-intro {f} (holdsᶠ _ p) = holdsᶠ _ (subst (_≡ true) (¬-¬-lemma (evalᶠ f)) p)
+
+  -- LFSC: not_not_elim
+  ¬-¬-elim : ∀ {f} → Holdsᶠ (notᶠ (notᶠ f)) → Holdsᶠ f
+  ¬-¬-elim {f} (holdsᶠ _ p) = holdsᶠ _ (subst (_≡ true) (sym (¬-¬-lemma (evalᶠ f))) p)
+
+  -- LFSC: or_elim_1
+  ∨-elimˡ : ∀ {f₁ f₂} → Holdsᶠ (notᶠ f₁) → Holdsᶠ (orᶠ f₁ f₂) → Holdsᶠ f₂
+  ∨-elimˡ (holdsᶠ _ p₁) (holdsᶠ _ p₂) rewrite not-t⇒f p₁ = holdsᶠ _ p₂
+
+  -- LFSC: or_elim_2
+  ∨-elimʳ : ∀ {f₁ f₂} → Holdsᶠ (notᶠ f₂) → Holdsᶠ (orᶠ f₁ f₂) → Holdsᶠ f₁
+  ∨-elimʳ {f₁} (holdsᶠ _ p₁) (holdsᶠ _ p₂)
+    rewrite not-t⇒f p₁ | ∨-identityʳ (evalᶠ f₁) = holdsᶠ _ p₂
+
+  -- LFSC: not_or_elim
+  de-morgan₁ : ∀ {f₁ f₂} → Holdsᶠ (notᶠ (orᶠ f₁ f₂)) → Holdsᶠ (andᶠ (notᶠ f₁) (notᶠ f₂))
+  de-morgan₁ {f₁} {f₂} (holdsᶠ _ p) = holdsᶠ _ helper
+
+    where
+
+    helper : not (evalᶠ f₁) ∧ not (evalᶠ f₂) ≡ true
+    helper with evalᶠ f₁ | evalᶠ f₂
+    helper | true  | true  = contradiction p (not-¬ refl)
+    helper | true  | false = contradiction p (not-¬ refl)
+    helper | false | true  = contradiction p (not-¬ refl)
+    helper | false | false = refl
+
+  -- LFSC: and_elim_1
+  ∧-elimʳ : ∀ {f₁ f₂} → Holdsᶠ (andᶠ f₁ f₂) → Holdsᶠ f₁
+  ∧-elimʳ {f₁} (holdsᶠ _ p) with evalᶠ f₁ | inspect evalᶠ f₁
+  ∧-elimʳ {f₁} (holdsᶠ _ p) | true | [ eq ] = holdsᶠ _ eq
+
+  -- LFSC: and_elim_2
+  ∧-elimˡ : ∀ {f₁ f₂} → Holdsᶠ (andᶠ f₁ f₂) → Holdsᶠ f₂
+  ∧-elimˡ {f₁} {f₂} (holdsᶠ _ p) with evalᶠ f₁
+  ∧-elimˡ {f₁} {f₂} (holdsᶠ _ p) | true = holdsᶠ _ p
+
+  -- LFSC: not_and_elim
+  de-morgan₂ : ∀ {f₁ f₂} → Holdsᶠ (notᶠ (andᶠ f₁ f₂)) → Holdsᶠ (orᶠ (notᶠ f₁) (notᶠ f₂))
+  de-morgan₂ {f₁} {f₂} (holdsᶠ _ p) = holdsᶠ _ helper
+
+    where
+
+    helper : not (evalᶠ f₁) ∨ not (evalᶠ f₂) ≡ true
+    helper with evalᶠ f₁ | evalᶠ f₂
+    helper | true  | true  = contradiction p (not-¬ refl)
+    helper | true  | false = refl
+    helper | false | true  = refl
+    helper | false | false = refl
+
   holds⇒eval : ∀ {f c} → (Holdsᶠ f → Holdsᶜ c) → evalᶠ f ≡ true → evalᶜ c ≡ true
   holds⇒eval {f} {c} fn e with fn (holdsᶠ f e)
   ... | holdsᶜ .c h = h
