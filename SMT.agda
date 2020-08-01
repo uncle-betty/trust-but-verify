@@ -383,16 +383,16 @@ module Rules (env : Env) where
 
   -- LFSC: not_or_elim
   de-morgan₁ : ∀ {f₁ f₂} → Holdsᶠ (notᶠ (orᶠ f₁ f₂)) → Holdsᶠ (andᶠ (notᶠ f₁) (notᶠ f₂))
-  de-morgan₁ {f₁} {f₂} (holdsᶠ _ p) = holdsᶠ _ helper
+  de-morgan₁ {f₁} {f₂} (holdsᶠ _ p) = holdsᶠ _ lem
 
     where
 
-    helper : not (evalᶠ f₁) ∧ not (evalᶠ f₂) ≡ true
-    helper with evalᶠ f₁ | evalᶠ f₂
-    helper | true  | true  = contradiction p (not-¬ refl)
-    helper | true  | false = contradiction p (not-¬ refl)
-    helper | false | true  = contradiction p (not-¬ refl)
-    helper | false | false = refl
+    lem : not (evalᶠ f₁) ∧ not (evalᶠ f₂) ≡ true
+    lem with evalᶠ f₁ | evalᶠ f₂
+    lem | true  | true  = contradiction p (not-¬ refl)
+    lem | true  | false = contradiction p (not-¬ refl)
+    lem | false | true  = contradiction p (not-¬ refl)
+    lem | false | false = refl
 
   -- LFSC: and_elim_1
   ∧-elimʳ : ∀ {f₁ f₂} → Holdsᶠ (andᶠ f₁ f₂) → Holdsᶠ f₁
@@ -406,50 +406,50 @@ module Rules (env : Env) where
 
   -- LFSC: not_and_elim
   de-morgan₂ : ∀ {f₁ f₂} → Holdsᶠ (notᶠ (andᶠ f₁ f₂)) → Holdsᶠ (orᶠ (notᶠ f₁) (notᶠ f₂))
-  de-morgan₂ {f₁} {f₂} (holdsᶠ _ p) = holdsᶠ _ helper
+  de-morgan₂ {f₁} {f₂} (holdsᶠ _ p) = holdsᶠ _ lem
 
     where
 
-    helper : not (evalᶠ f₁) ∨ not (evalᶠ f₂) ≡ true
-    helper with evalᶠ f₁ | evalᶠ f₂
-    helper | true  | true  = contradiction p (not-¬ refl)
-    helper | true  | false = refl
-    helper | false | true  = refl
-    helper | false | false = refl
-
-  holds⇒eval : ∀ {f c} → (Holdsᶠ f → Holdsᶜ c) → evalᶠ f ≡ true → evalᶜ c ≡ true
-  holds⇒eval {f} {c} fn e with fn (holdsᶠ f e)
-  ... | holdsᶜ .c h = h
-
-  holds⇒eval-¬ : ∀ {f c} → (Holdsᶠ (notᶠ f) → Holdsᶜ c) → evalᶠ f ≡ false → evalᶜ c ≡ true
-  holds⇒eval-¬ {f} {c} fn e with fn (holdsᶠ (notᶠ f) (f⇒not-t e))
-  ... | holdsᶜ .c h = h
+    lem : not (evalᶠ f₁) ∨ not (evalᶠ f₂) ≡ true
+    lem with evalᶠ f₁ | evalᶠ f₂
+    lem | true  | true  = contradiction p (not-¬ refl)
+    lem | true  | false = refl
+    lem | false | true  = refl
+    lem | false | false = refl
 
   -- LFSC: ast
   assum : ∀ {v f c} → Atom v f → (Holdsᶠ f → Holdsᶜ c) → Holdsᶜ (neg v ∷ c)
-  assum {v} {f} {c} (atom .v .f a) fn = holdsᶜ (neg v ∷ c) lem
+  assum {v} {f} {c} (atom .v .f a) fn = holdsᶜ (neg v ∷ c) lem₂
 
     where
 
-    lem : not (evalᵛ env v) ∨ evalᶜ c ≡ true
-    lem with evalᶠ f | inspect evalᶠ f
-    lem | true  | [ eq ] rewrite a = holds⇒eval fn eq
-    lem | false | [ eq ] rewrite a = refl
+    lem₁ : ∀ {f c} → (Holdsᶠ f → Holdsᶜ c) → evalᶠ f ≡ true → evalᶜ c ≡ true
+    lem₁ {f} {c} fn e with fn (holdsᶠ f e)
+    ... | holdsᶜ _ h = h
+
+    lem₂ : not (evalᵛ env v) ∨ evalᶜ c ≡ true
+    lem₂ with evalᶠ f | inspect evalᶠ f
+    lem₂ | true  | [ eq ] rewrite a = lem₁ fn eq
+    lem₂ | false | _      rewrite a = refl
 
   -- LFSC: asf
   assum-¬ : ∀ {v f c} → Atom v f → (Holdsᶠ (notᶠ f) → Holdsᶜ c) → Holdsᶜ (pos v ∷ c)
-  assum-¬ {v} {f} {c} (atom .v .f a) fn = holdsᶜ (pos v ∷ c) lem
+  assum-¬ {v} {f} {c} (atom .v .f a) fn = holdsᶜ (pos v ∷ c) lem₂
 
     where
 
-    lem : evalᵛ env v ∨ evalᶜ c ≡ true
-    lem with evalᶠ f | inspect evalᶠ f
-    lem | true  | [ eq ] rewrite a = refl
-    lem | false | [ eq ] rewrite a = holds⇒eval-¬ fn eq
+    lem₁ : ∀ {f c} → (Holdsᶠ (notᶠ f) → Holdsᶜ c) → evalᶠ f ≡ false → evalᶜ c ≡ true
+    lem₁ {f} {c} fn e with fn (holdsᶠ (notᶠ f) (f⇒not-t e))
+    ... | holdsᶜ _ h = h
+
+    lem₂ : evalᵛ env v ∨ evalᶜ c ≡ true
+    lem₂ with evalᶠ f | inspect evalᶠ f
+    lem₂ | true  | _      rewrite a = refl
+    lem₂ | false | [ eq ] rewrite a = lem₁ fn eq
 
 --- Base theory ---
 
--- XXX - remove some day, CVC4 says that these are temporary
+-- XXX - remove one day, CVC4 promises that these are only temporary
 postulate
   -- LFSC: trust
   trust-f : Holdsᶠ falseᶠ
