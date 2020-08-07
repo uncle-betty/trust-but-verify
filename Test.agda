@@ -10,12 +10,12 @@ open import Relation.Binary.PropositionalEquality using (_≡_ ; refl)
 open import Env using (var ; ε ; assignᵛ)
 open import SMT as S
   using (
-    trueᶠ ; falseᶠ ; notᶠ ; iffᶠ ; appᵇ ; boolᶠ ; equᶠ ;
-    evalᶠ ; trustᶠ ; Holdsᶠ ; holdsᶠ ; _⇔ᵇ_
+    trueᶠ ; falseᶠ ; notᶠ ; iffᶠ ; appᵇ ; boolˣ ; equˣ ;
+    eval ; trust ; Holds ; holds ; _⇔ᵇ_
   )
 
 env =
-  assignᵛ (var 1) (evalᶠ {false} falseᶠ) $
+  assignᵛ (var 1) (eval {false} falseᶠ) $
   ε
 
 open import SAT env
@@ -57,11 +57,11 @@ sat₂ a b r =
 
 smt₁ =
   λ (x : Bool) →
-  λ (as₁ : Holdsᶠ trueᶠ) →
-  λ (as₂ : Holdsᶠ (notᶠ (iffᶠ (appᵇ x) (appᵇ x)))) →
+  λ (as₁ : Holds trueᶠ) →
+  λ (as₂ : Holds (notᶠ (iffᶠ (appᵇ x) (appᵇ x)))) →
   let let₁ = falseᶠ in
-  mpᶠ (trustᶠ falseᶠ) λ pa₁ →
-  mpᶠ (trustᶠ (notᶠ let₁)) λ pa₂ →
+  mpᶠ (trust falseᶠ) λ pa₁ →
+  mpᶠ (trust (notᶠ let₁)) λ pa₂ →
   -- instead of decl_atom
   let v₁ = var 1 in
   let a₁ = atom v₁ let₁ refl in
@@ -70,10 +70,10 @@ smt₁ =
   simpl-mp (resolve-r⁺ pb₄ pb₁ v₁) id
 
 prop₁ : (x : Bool) → T x ⇔ T x
-prop₁ x = final (iffᶠ (appᵇ x) (appᵇ x)) (smt₁ x (holdsᶠ trueᶠ refl))
+prop₁ x = final (iffᶠ (appᵇ x) (appᵇ x)) (smt₁ x (holds trueᶠ refl))
 
 bool₁ : (x : Bool) → T (x ⇔ᵇ x)
-bool₁ x = final (boolᶠ (iffᶠ (appᵇ x) (appᵇ x))) (smt₁ x (holdsᶠ trueᶠ refl))
+bool₁ x = final (boolˣ (iffᶠ (appᵇ x) (appᵇ x))) (smt₁ x (holds trueᶠ refl))
 
 equ₁ : (x : Bool) → x ≡ x
-equ₁ x = final (equᶠ (appᵇ x) (appᵇ x)) (smt₁ x (holdsᶠ trueᶠ refl))
+equ₁ x = final (equˣ (appᵇ x) (appᵇ x)) (smt₁ x (holds trueᶠ refl))
