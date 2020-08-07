@@ -59,8 +59,6 @@ data Formula where
   boolᶠ  : Formula true → Formula true
   -- extension - boolean equalities
   equᶠ   : Formula true → Formula true → Formula true
-  -- extension - opaquely wrap an existing witness for an arbitrary proposition
-  witᶠ   : {P : Set} → P → Formula true
 
 infix 3 _→ᵇ_
 
@@ -102,7 +100,6 @@ evalᶠ (appᵇ b) = b
 
 evalᶠ (boolᶠ f) = evalᶠ f
 evalᶠ (equᶠ f₁ f₂) = evalᶠ f₁ ⇔ᵇ evalᶠ f₂
-evalᶠ (witᶠ _) = true
 
 propᶠ : {ex : Bool} → Formula ex → Set
 propᶠ trueᶠ  = ⊤
@@ -119,7 +116,6 @@ propᶠ (appᵇ b) = T b
 
 propᶠ (boolᶠ f) = T (evalᶠ f)
 propᶠ (equᶠ f₁ f₂) = evalᶠ f₁ ≡ evalᶠ f₂
-propᶠ (witᶠ {P} _) = P
 
 proveᵗ : ∀ {ex} → (f : Formula ex) → evalᶠ f ≡ true → propᶠ f
 proveᵗ-¬ : ∀ {ex} → (f : Formula ex) → evalᶠ f ≡ false → ¬ propᶠ f
@@ -165,7 +161,6 @@ proveᵗ (appᵇ b) refl = tt
 
 proveᵗ (boolᶠ f) p = subst T (sym p) tt
 proveᵗ (equᶠ f₁ f₂) p = ⇔ᵇ≡t⇒≡ (evalᶠ f₁) (evalᶠ f₂) p
-proveᵗ (witᶠ w) refl = w
 
 proveᵗ-¬ falseᶠ p = id
 
@@ -237,7 +232,6 @@ strip (appᵇ b) = appᵇ b
 
 strip (boolᶠ f) = strip f
 strip (equᶠ f₁ f₂) = iffᶠ (strip f₁) (strip f₂)
-strip (witᶠ p) = trueᶠ
 
 strip-sound : ∀ {ex} → (f : Formula ex) → evalᶠ (strip f) ≡ evalᶠ f
 
@@ -255,7 +249,6 @@ strip-sound (appᵇ b) = refl
 
 strip-sound (boolᶠ f) = strip-sound f
 strip-sound (equᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
-strip-sound (witᶠ w) = refl
 
 -- LFSC: th_holds
 data Holdsᶠ : Formula false → Set where
