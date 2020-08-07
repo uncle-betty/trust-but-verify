@@ -1,6 +1,6 @@
 module SMT where
 
-open import Data.Bool using (Bool ; true ; false ; _∧_ ; _∨_ ; not ; if_then_else_ ; T)
+open import Data.Bool using (Bool ; true ; false ; _∧_ ; _∨_ ; not ; _xor_ ; if_then_else_ ; T)
 open import Data.Bool.Properties using (∨-identityʳ ; not-¬)
 open import Data.Empty using (⊥)
 open import Data.List using ([] ; _∷_)
@@ -49,6 +49,8 @@ data Formula where
   implᶠ  : formula-op₂
   -- LFSC: iff
   iffᶠ   : formula-op₂
+  -- LFSC: xor
+  xorᶠ   : formula-op₂
 
   -- LFSC: = (Bool sort)
   ≡ᵇ     : {ex : Bool} → Bool → Bool → Formula ex
@@ -94,6 +96,7 @@ eval (andᶠ f₁ f₂) = eval f₁ ∧ eval f₂
 eval (orᶠ f₁ f₂) = eval f₁ ∨ eval f₂
 eval (implᶠ f₁ f₂) = eval f₁ →ᵇ eval f₂
 eval (iffᶠ f₁ f₂) = eval f₁ ⇔ᵇ eval f₂
+eval (xorᶠ f₁ f₂) = eval f₁ xor eval f₂
 
 eval (≡ᵇ b₁ b₂) = b₁ ⇔ᵇ b₂
 eval (appᵇ b) = b
@@ -110,6 +113,7 @@ prop (andᶠ f₁ f₂) = prop f₁ × prop f₂
 prop (orᶠ f₁ f₂) = prop f₁ ⊎ prop f₂
 prop (implᶠ f₁ f₂) = prop f₁ → prop f₂
 prop (iffᶠ f₁ f₂) = prop f₁ ⇔ prop f₂
+prop (xorᶠ f₁ f₂) = (prop f₁ × ¬ prop f₂) ⊎ (¬ prop f₁ × prop f₂)
 
 prop (≡ᵇ b₁ b₂) = b₁ ≡ b₂
 prop (appᵇ b) = T b
@@ -155,6 +159,12 @@ prove (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | false | [ eq₂ ] =
   equivalence
     (λ x → contradiction x (prove-¬ f₁ eq₁))
     λ x → contradiction x (prove-¬ f₂ eq₂)
+
+prove (xorᶠ f₁ f₂) p  with eval f₁ | inspect eval f₁ | eval f₂ | inspect eval f₂
+prove (xorᶠ f₁ f₂) () | true  | _       | true  | _
+prove (xorᶠ f₁ f₂) _  | true  | [ eq₁ ] | false | [ eq₂ ] = inj₁ (prove f₁ eq₁ , prove-¬ f₂ eq₂)
+prove (xorᶠ f₁ f₂) _  | false | [ eq₁ ] | true  | [ eq₂ ] = inj₂ (prove-¬ f₁ eq₁ , prove f₂ eq₂)
+prove (xorᶠ f₁ f₂) () | false | _       | false | _
 
 prove (≡ᵇ b₁ b₂) p = ⇔ᵇ≡t⇒≡ b₁ b₂ p
 prove (appᵇ b) refl = tt
@@ -211,6 +221,23 @@ prove-¬ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | true  | [ eq₂ ] =
 
 prove-¬ (iffᶠ f₁ f₂) () | false | _       | false | _
 
+prove-¬ (xorᶠ f₁ f₂) p  r with eval f₁ | inspect eval f₁ | eval f₂ | inspect eval f₂
+
+prove-¬ (xorᶠ f₁ f₂) _  (inj₁ r) | true  | _       | true  | [ eq₂ ] =
+  contradiction (prove f₂ eq₂) (proj₂ r)
+
+prove-¬ (xorᶠ f₁ f₂) _  (inj₂ r) | true  | [ eq₁ ] | true  | _       =
+  contradiction (prove f₁ eq₁) (proj₁ r)
+
+prove-¬ (xorᶠ f₁ f₂) () _        | true  | _       | false | _
+prove-¬ (xorᶠ f₁ f₂) () _        | false | _       | true  | _
+
+prove-¬ (xorᶠ f₁ f₂) _  (inj₁ r) | false | [ eq₁ ] | false | _       =
+  contradiction (proj₁ r) (prove-¬ f₁ eq₁)
+
+prove-¬ (xorᶠ f₁ f₂) _  (inj₂ r) | false | _       | false | [ eq₂ ] =
+  contradiction (proj₂ r) (prove-¬ f₂ eq₂)
+
 prove-¬ (≡ᵇ b₁ b₂) p = ⇔ᵇ≡f⇒≢ b₁ b₂ p
 prove-¬ (appᵇ b) refl = id
 
@@ -226,6 +253,7 @@ strip (andᶠ f₁ f₂) = andᶠ (strip f₁) (strip f₂)
 strip (orᶠ f₁ f₂) = orᶠ (strip f₁) (strip f₂)
 strip (implᶠ f₁ f₂) = implᶠ (strip f₁) (strip f₂)
 strip (iffᶠ f₁ f₂) = iffᶠ (strip f₁) (strip f₂)
+strip (xorᶠ f₁ f₂) = xorᶠ (strip f₁) (strip f₂)
 
 strip (≡ᵇ b₁ b₂) = ≡ᵇ b₁ b₂
 strip (appᵇ b) = appᵇ b
@@ -243,6 +271,7 @@ strip-sound (andᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = ref
 strip-sound (orᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
 strip-sound (implᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
 strip-sound (iffᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
+strip-sound (xorᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
 
 strip-sound (≡ᵇ b₁ b₂) = refl
 strip-sound (appᵇ b) = refl
@@ -484,6 +513,39 @@ module Rules (env : Env) where
     lem | true  | false = refl
     lem | false | true  = refl
     lem | false | false = contradiction p (not-¬ refl)
+
+  -- LFSC: xor_elim_1
+  xor-elim-¬ : ∀ {f₁ f₂} → Holds (xorᶠ f₁ f₂) → Holds (orᶠ (notᶠ f₁) (notᶠ f₂))
+  xor-elim-¬ {f₁} {f₂} (holds _ p) = holds _ lem
+    where
+    lem : not (eval f₁) ∨ not (eval f₂) ≡ true
+    lem with eval f₁ | eval f₂
+    lem | true  | true  = contradiction p (not-¬ refl)
+    lem | true  | false = refl
+    lem | false | true  = refl
+    lem | false | false = contradiction p (not-¬ refl)
+
+  -- LFSC: xor_elim_2
+  xor-elim : ∀ {f₁ f₂} → Holds (xorᶠ f₁ f₂) → Holds (orᶠ f₁ f₂)
+  xor-elim {f₁} {f₂} (holds _ p) = holds _ lem
+    where
+    lem : eval f₁ ∨ eval f₂ ≡ true
+    lem with eval f₁ | eval f₂
+    lem | true  | true  = contradiction p (not-¬ refl)
+    lem | true  | false = refl
+    lem | false | true  = refl
+    lem | false | false = contradiction p (not-¬ refl)
+
+  -- LFSC: not_xor_elim
+  ¬-xor-elim : ∀ {f₁ f₂} → Holds (notᶠ (xorᶠ f₁ f₂)) → Holds (iffᶠ f₁ f₂)
+  ¬-xor-elim {f₁} {f₂} (holds _ p) = holds _ lem
+    where
+    lem : (eval f₁ ⇔ᵇ eval f₂) ≡ true
+    lem with eval f₁ | eval f₂
+    lem | true  | true  = refl
+    lem | true  | false = contradiction p (not-¬ refl)
+    lem | false | true  = contradiction p (not-¬ refl)
+    lem | false | false = refl
 
   -- LFSC: ast
   assum : ∀ {v f c} → Atom v f → (Holds f → Holdsᶜ c) → Holdsᶜ (neg v ∷ c)
