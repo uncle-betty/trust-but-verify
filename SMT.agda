@@ -20,21 +20,22 @@ open import Env using (Var ; var ; Env ; evalᵛ)
 
 --- SMT ---
 
-data Formula : Set₁
+data Formula : Bool → Set₁
 
--- LFSC: formula_op1
-formula-op₁ = Formula → Formula
--- LFSC: formula_op2
-formula-op₂ = Formula → Formula → Formula
--- LFSC: formula_op3
-formula-op₃ = Formula → Formula → Formula → Formula
+formula-op₀ = {ex : Bool} → Formula ex
+-- LFSC: formula_op1 (extended)
+formula-op₁ = {ex : Bool} → Formula ex → Formula ex
+-- LFSC: formula_op2 (extended)
+formula-op₂ = {ex : Bool} → Formula ex → Formula ex → Formula ex
+-- LFSC: formula_op3 (extended)
+formula-op₃ = {ex : Bool} → Formula ex → Formula ex → Formula ex → Formula ex
 
--- LFSC: formula
+-- LFSC: formula (extended)
 data Formula where
   -- LFSC: true
-  trueᶠ  : Formula
+  trueᶠ  : formula-op₀
   -- LFSC: false
-  falseᶠ : Formula
+  falseᶠ : formula-op₀
 
   -- LFSC: not
   notᶠ   : formula-op₁
@@ -48,13 +49,16 @@ data Formula where
   iffᶠ   : formula-op₂
 
   -- LFSC: = (Bool sort)
-  ≡ᵇ     : Bool → Bool → Formula
-
+  ≡ᵇ     : {ex : Bool} → Bool → Bool → Formula ex
   -- LFSC: p_app
-  appᵇ   : Bool → Formula
+  appᵇ   : {ex : Bool} → Bool → Formula ex
 
-  -- extension to opaquely wrap an existing witness for an arbitrary proposition
-  witᶠ   : {P : Set} → P → Formula
+  -- extension - boolean subformulas
+  boolᶠ  : Formula true → Formula true
+  -- extension - boolean equalities
+  equᶠ   : Formula true → Formula true → Formula true
+  -- extension - opaquely wrap an existing witness for an arbitrary proposition
+  witᶠ   : {P : Set} → P → Formula true
 
 infix 0 _⇔_
 
@@ -89,7 +93,7 @@ x⇔ᵇx : ∀ b → (b ⇔ᵇ b) ≡ true
 x⇔ᵇx true  = refl
 x⇔ᵇx false = refl
 
-evalᶠ : Formula → Bool
+evalᶠ : {ex : Bool} → Formula ex → Bool
 evalᶠ trueᶠ = true
 evalᶠ falseᶠ = false
 
@@ -102,15 +106,11 @@ evalᶠ (iffᶠ f₁ f₂) = evalᶠ f₁ ⇔ᵇ evalᶠ f₂
 evalᶠ (≡ᵇ b₁ b₂) = b₁ ⇔ᵇ b₂
 evalᶠ (appᵇ b) = b
 
+evalᶠ (boolᶠ f) = evalᶠ f
+evalᶠ (equᶠ f₁ f₂) = evalᶠ f₁ ⇔ᵇ evalᶠ f₂
 evalᶠ (witᶠ _) = true
 
-propᵇ : Formula → Set
-propᵇ = T ∘ evalᶠ
-
-propᵉ : Formula → Formula → Set
-propᵉ f₁ f₂ = evalᶠ f₁ ≡ evalᶠ f₂
-
-propᶠ : Formula → Set
+propᶠ : {ex : Bool} → Formula ex → Set
 propᶠ trueᶠ  = ⊤
 propᶠ falseᶠ = ⊥
 
@@ -123,16 +123,12 @@ propᶠ (iffᶠ f₁ f₂) = propᶠ f₁ ⇔ propᶠ f₂
 propᶠ (≡ᵇ b₁ b₂) = b₁ ≡ b₂
 propᶠ (appᵇ b) = T b
 
+propᶠ (boolᶠ f) = T (evalᶠ f)
+propᶠ (equᶠ f₁ f₂) = evalᶠ f₁ ≡ evalᶠ f₂
 propᶠ (witᶠ {P} _) = P
 
-proveᵇ : ∀ f → evalᶠ f ≡ true → propᵇ f
-proveᵇ _ p = subst T (sym p) tt
-
-proveᵉ : ∀ f₁ f₂ → evalᶠ (iffᶠ f₁ f₂) ≡ true → propᵉ f₁ f₂
-proveᵉ f₁ f₂ p = ⇔ᵇ≡t⇒≡ (evalᶠ f₁) (evalᶠ f₂) p
-
-proveᵗ : ∀ f → evalᶠ f ≡ true → propᶠ f
-proveᵗ-¬ : ∀ f → evalᶠ f ≡ false → ¬ propᶠ f
+proveᵗ : ∀ {ex} → (f : Formula ex) → evalᶠ f ≡ true → propᶠ f
+proveᵗ-¬ : ∀ {ex} → (f : Formula ex) → evalᶠ f ≡ false → ¬ propᶠ f
 
 proveᵗ trueᶠ p = tt
 
@@ -177,6 +173,8 @@ proveᵗ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | false | [ eq₂ ] =
 proveᵗ (≡ᵇ b₁ b₂) p = ⇔ᵇ≡t⇒≡ b₁ b₂ p
 proveᵗ (appᵇ b) refl = tt
 
+proveᵗ (boolᶠ f) p = subst T (sym p) tt
+proveᵗ (equᶠ f₁ f₂) p = ⇔ᵇ≡t⇒≡ (evalᶠ f₁) (evalᶠ f₂) p
 proveᵗ (witᶠ w) refl = w
 
 proveᵗ-¬ falseᶠ p = id
@@ -229,30 +227,66 @@ proveᵗ-¬ (iffᶠ f₁ f₂) () | false | _       | false | _
 proveᵗ-¬ (≡ᵇ b₁ b₂) p = ⇔ᵇ≡f⇒≢ b₁ b₂ p
 proveᵗ-¬ (appᵇ b) refl = id
 
+proveᵗ-¬ (boolᶠ f) p r = subst T p r
+proveᵗ-¬ (equᶠ f₁ f₂) p = ⇔ᵇ≡f⇒≢ (evalᶠ f₁) (evalᶠ f₂) p
+
+strip : {ex : Bool} → Formula ex → Formula false
+strip trueᶠ = trueᶠ
+strip falseᶠ = falseᶠ
+
+strip (notᶠ f) = notᶠ (strip f)
+strip (andᶠ f₁ f₂) = andᶠ (strip f₁) (strip f₂)
+strip (orᶠ f₁ f₂) = orᶠ (strip f₁) (strip f₂)
+strip (implᶠ f₁ f₂) = implᶠ (strip f₁) (strip f₂)
+strip (iffᶠ f₁ f₂) = iffᶠ (strip f₁) (strip f₂)
+
+strip (≡ᵇ b₁ b₂) = ≡ᵇ b₁ b₂
+strip (appᵇ b) = appᵇ b
+
+strip (boolᶠ f) = strip f
+strip (equᶠ f₁ f₂) = iffᶠ (strip f₁) (strip f₂)
+strip (witᶠ p) = trueᶠ
+
+strip-sound : ∀ {ex} → (f : Formula ex) → evalᶠ (strip f) ≡ evalᶠ f
+
+strip-sound trueᶠ = refl
+strip-sound falseᶠ = refl
+
+strip-sound (notᶠ f) rewrite strip-sound f = refl
+strip-sound (andᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
+strip-sound (orᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
+strip-sound (implᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
+strip-sound (iffᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
+
+strip-sound (≡ᵇ b₁ b₂) = refl
+strip-sound (appᵇ b) = refl
+
+strip-sound (boolᶠ f) = strip-sound f
+strip-sound (equᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
+strip-sound (witᶠ w) = refl
+
 -- LFSC: th_holds
-data Holdsᶠ : Formula → Set where
-  holdsᶠ : (f : Formula) → evalᶠ f ≡ true → Holdsᶠ f
+data Holdsᶠ : Formula false → Set where
+  holdsᶠ : (f : Formula false) → evalᶠ f ≡ true → Holdsᶠ f
 
 module Rules (env : Env) where
 
   open import SAT env
     using (pos ; neg ; Holdsᶜ ; holdsᶜ ; holdsᶜ-[] ; evalᶜ ; not-t⇒f ; f⇒not-t)
 
-  final : (f : Formula) → (Holdsᶠ (notᶠ f) → Holdsᶜ []) → evalᶠ f ≡ true
-  final f h with evalᶠ f | inspect evalᶠ f
-  ... | true  | [ eq ] = refl
-  ... | false | [ eq ] = contradiction (holdsᶠ (notᶠ f) (f⇒not-t eq)) (holdsᶜ-[] ∘ h)
-
-  -- XXX - unify the following three? for mixed formulas like (a ≡ b) ⊎ T (c ⇔ᵇ d)
-
-  finalᶠ : (f : Formula) → (Holdsᶠ (notᶠ f) → Holdsᶜ []) → propᶠ f
-  finalᶠ f h = proveᵗ f (final f h)
-
-  finalᵇ : (f : Formula) → (Holdsᶠ (notᶠ f) → Holdsᶜ []) → propᵇ f
-  finalᵇ f h = proveᵇ f (final f h)
-
-  finalᵉ : (f₁ f₂ : Formula) → (Holdsᶠ (notᶠ (iffᶠ f₁ f₂)) → Holdsᶜ []) → evalᶠ f₁ ≡ evalᶠ f₂
-  finalᵉ f₁ f₂ h = proveᵉ f₁ f₂ (final (iffᶠ f₁ f₂) h)
+  final : (f : Formula true) → (Holdsᶠ (notᶠ (strip f)) → Holdsᶜ []) → propᶠ f
+  final f h =
+    let
+      f′ = strip f
+      p′ = lem f′ h
+      p  = subst (_≡ true) (strip-sound f) p′
+    in
+      proveᵗ f p
+    where
+      lem : (f : Formula false) → (Holdsᶠ (notᶠ f) → Holdsᶜ []) → evalᶠ f ≡ true
+      lem f h with evalᶠ f | inspect evalᶠ f
+      ... | true  | [ eq ] = refl
+      ... | false | [ eq ] = contradiction (holdsᶠ (notᶠ f) (f⇒not-t eq)) (holdsᶜ-[] ∘ h)
 
   -- LFSC: t_t_neq_f
   t≢fᵇ : Holdsᶠ (notᶠ (≡ᵇ true false))
@@ -317,8 +351,8 @@ module Rules (env : Env) where
   x≡t⇒x≡tᵇ {true} (holdsᶠ _ _) = holdsᶠ _ refl
 
   -- LFSC: atom
-  data Atom : Var → Formula → Set where
-    atom : (v : Var) → (f : Formula) → evalᵛ env v ≡ evalᶠ f → Atom v f
+  data Atom : Var → Formula false → Set where
+    atom : (v : Var) → (f : Formula false) → evalᵛ env v ≡ evalᶠ f → Atom v f
 
   -- XXX - cover bvatom
 
@@ -509,4 +543,4 @@ postulate
   -- LFSC: trust
   trust-f : Holdsᶠ falseᶠ
   -- LFSC: trust_f
-  trustᶠ : (f : Formula) → Holdsᶠ f
+  trustᶠ : (f : Formula false) → Holdsᶠ f

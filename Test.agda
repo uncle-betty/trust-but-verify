@@ -1,6 +1,6 @@
 module Test where
 
-open import Data.Bool using (Bool ; T)
+open import Data.Bool using (Bool ; false ; T)
 open import Data.List using ([] ; _∷_)
 open import Data.Product using (_×_)
 open import Function using (id ; _$_)
@@ -8,10 +8,13 @@ open import Relation.Binary.PropositionalEquality using (_≡_ ; refl)
 
 open import Env using (var ; ε ; assignᵛ)
 open import SMT as S
-  using (trueᶠ ; falseᶠ ; notᶠ ; iffᶠ ; appᶠ ; evalᶠ ; trustᶠ ; Holdsᶠ ; holdsᶠ ; _⇔_ ; _⇔ᵇ_)
+  using (
+    trueᶠ ; falseᶠ ; notᶠ ; iffᶠ ; appᵇ ; boolᶠ ; equᶠ ;
+    evalᶠ ; trustᶠ ; Holdsᶠ ; holdsᶠ ; _⇔_ ; _⇔ᵇ_
+  )
 
 env =
-  assignᵛ (var 1) (evalᶠ falseᶠ) $
+  assignᵛ (var 1) (evalᶠ {false} falseᶠ) $
   ε
 
 open import SAT env
@@ -20,11 +23,7 @@ open import SAT env
     resolve-r ; resolve-r⁺ ; resolve-q ; resolve-q⁺ ; mp ; simpl-mp
   )
 
-open S.Rules env
-  using (
-    Atom ; atom ; mpᶠ ; assum ; assum-¬ ; clausi-f ; contra ;
-    finalᶠ ; finalᵇ ; finalᵉ
-  )
+open S.Rules env using (Atom ; atom ; mpᶠ ; assum ; assum-¬ ; clausi-f ; contra ; final)
 
 -- SAT test #1
 
@@ -58,7 +57,7 @@ sat₂ a b r =
 smt₁ =
   λ (x : Bool) →
   λ (as₁ : Holdsᶠ trueᶠ) →
-  λ (as₂ : Holdsᶠ (notᶠ (iffᶠ (appᶠ x) (appᶠ x)))) →
+  λ (as₂ : Holdsᶠ (notᶠ (iffᶠ (appᵇ x) (appᵇ x)))) →
   let let₁ = falseᶠ in
   mpᶠ (trustᶠ falseᶠ) λ pa₁ →
   mpᶠ (trustᶠ (notᶠ let₁)) λ pa₂ →
@@ -70,10 +69,10 @@ smt₁ =
   simpl-mp (resolve-r⁺ pb₄ pb₁ v₁) id
 
 prop₁ : (x : Bool) → T x ⇔ T x
-prop₁ x = finalᶠ (iffᶠ (appᶠ x) (appᶠ x)) (smt₁ x (holdsᶠ trueᶠ refl))
+prop₁ x = final (iffᶠ (appᵇ x) (appᵇ x)) (smt₁ x (holdsᶠ trueᶠ refl))
 
 bool₁ : (x : Bool) → T (x ⇔ᵇ x)
-bool₁ x = finalᵇ (iffᶠ (appᶠ x) (appᶠ x)) (smt₁ x (holdsᶠ trueᶠ refl))
+bool₁ x = final (boolᶠ (iffᶠ (appᵇ x) (appᵇ x))) (smt₁ x (holdsᶠ trueᶠ refl))
 
 equ₁ : (x : Bool) → x ≡ x
-equ₁ x = finalᵉ (appᶠ x) (appᶠ x) (smt₁ x (holdsᶠ trueᶠ refl))
+equ₁ x = final (equᶠ (appᵇ x) (appᵇ x)) (smt₁ x (holdsᶠ trueᶠ refl))
