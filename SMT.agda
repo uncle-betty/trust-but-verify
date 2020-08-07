@@ -8,7 +8,9 @@ open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂)
 open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Unit using (⊤ ; tt)
 
-open import Function using (id ; _∘_ ; _$_ ; _∋_)
+open import Function using (id ; _∘_ ; _$_ ; const)
+open import Function.Equality using (Π)
+open import Function.Equivalence using (_⇔_ ; equivalence)
 
 open import Relation.Binary.PropositionalEquality
   using (_≡_ ; _≢_ ; refl ; subst ; sym ; inspect ; [_])
@@ -59,14 +61,6 @@ data Formula where
   equᶠ   : Formula true → Formula true → Formula true
   -- extension - opaquely wrap an existing witness for an arbitrary proposition
   witᶠ   : {P : Set} → P → Formula true
-
-infix 0 _⇔_
-
-record _⇔_ (P Q : Set) : Set where
-  constructor iffʳ
-  field
-    lr : P → Q
-    rl : Q → P
 
 infix 3 _→ᵇ_
 
@@ -148,7 +142,7 @@ proveᵗ (orᶠ f₁ f₂) _  | false | _       | true  | [ eq₂ ] = inj₂ (pr
 proveᵗ (orᶠ f₁ f₂) () | false | _       | false | _
 
 proveᵗ (implᶠ f₁ f₂) p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
-proveᵗ (implᶠ f₁ f₂) _  | true  | [ eq₁ ] | true  | [ eq₂ ] = λ _ → proveᵗ f₂ eq₂
+proveᵗ (implᶠ f₁ f₂) _  | true  | [ eq₁ ] | true  | [ eq₂ ] = const $ proveᵗ f₂ eq₂
 proveᵗ (implᶠ f₁ f₂) () | true  | _       | false | _
 
 proveᵗ (implᶠ f₁ f₂) _  | false | [ eq₁ ] | _     | _       =
@@ -156,19 +150,15 @@ proveᵗ (implᶠ f₁ f₂) _  | false | [ eq₁ ] | _     | _       =
 
 proveᵗ (iffᶠ f₁ f₂) p with evalᶠ f₁ | inspect evalᶠ f₁ | evalᶠ f₂ | inspect evalᶠ f₂
 proveᵗ (iffᶠ f₁ f₂) _  | true  | [ eq₁ ] | true  | [ eq₂ ] =
-  record {
-    lr = λ _ → proveᵗ f₂ eq₂ ;
-    rl = λ _ → proveᵗ f₁ eq₁
-  }
+  equivalence (const $ proveᵗ f₂ eq₂) (const $ proveᵗ f₁ eq₁)
 
 proveᵗ (iffᶠ f₁ f₂) () | true  | _       | false | _
 proveᵗ (iffᶠ f₁ f₂) () | false | _       | true  | _
 
 proveᵗ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | false | [ eq₂ ] =
-  record {
-    lr = λ x → contradiction x (proveᵗ-¬ f₁ eq₁) ;
-    rl = λ x → contradiction x (proveᵗ-¬ f₂ eq₂)
-  }
+  equivalence
+    (λ x → contradiction x (proveᵗ-¬ f₁ eq₁))
+    λ x → contradiction x (proveᵗ-¬ f₂ eq₂)
 
 proveᵗ (≡ᵇ b₁ b₂) p = ⇔ᵇ≡t⇒≡ b₁ b₂ p
 proveᵗ (appᵇ b) refl = tt
@@ -209,7 +199,7 @@ proveᵗ-¬ (implᶠ f₁ f₂) p with evalᶠ f₁ | inspect evalᶠ f₁ | eva
 proveᵗ-¬ (implᶠ f₁ f₂) () | true  | _       | true  | _
 
 proveᵗ-¬ (implᶠ f₁ f₂) _  | true  | [ eq₁ ] | false | [ eq₂ ] =
-  λ fn → (proveᵗ-¬ f₂ eq₂ ∘ fn) (proveᵗ f₁ eq₁)
+  λ fn → proveᵗ-¬ f₂ eq₂ $ fn (proveᵗ f₁ eq₁)
 
 proveᵗ-¬ (implᶠ f₁ f₂) () | false | _       | _     | _
 
@@ -217,10 +207,12 @@ proveᵗ-¬ (iffᶠ f₁ f₂) p with evalᶠ f₁ | inspect evalᶠ f₁ | eval
 proveᵗ-¬ (iffᶠ f₁ f₂) () | true  | _       | true  | _
 
 proveᵗ-¬ (iffᶠ f₁ f₂) _  | true  | [ eq₁ ] | false | [ eq₂ ] =
-  λ { (iffʳ lr _) → (proveᵗ-¬ f₂ eq₂ ∘ lr) (proveᵗ f₁ eq₁) }
+  λ { (record {to = lr}) → proveᵗ-¬ f₂ eq₂ $ lr ⟨$⟩ proveᵗ f₁ eq₁ }
+  where open Π
 
 proveᵗ-¬ (iffᶠ f₁ f₂) _  | false | [ eq₁ ] | true  | [ eq₂ ] =
-  λ { (iffʳ _ rl) → (proveᵗ-¬ f₁ eq₁ ∘ rl) (proveᵗ f₂ eq₂) }
+  λ { (record {from = rl}) → proveᵗ-¬ f₁ eq₁ $ rl ⟨$⟩ proveᵗ f₂ eq₂ }
+  where open Π
 
 proveᵗ-¬ (iffᶠ f₁ f₂) () | false | _       | false | _
 

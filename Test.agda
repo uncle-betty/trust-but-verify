@@ -4,13 +4,14 @@ open import Data.Bool using (Bool ; false ; T)
 open import Data.List using ([] ; _∷_)
 open import Data.Product using (_×_)
 open import Function using (id ; _$_)
+open import Function.Equivalence using (_⇔_)
 open import Relation.Binary.PropositionalEquality using (_≡_ ; refl)
 
 open import Env using (var ; ε ; assignᵛ)
 open import SMT as S
   using (
     trueᶠ ; falseᶠ ; notᶠ ; iffᶠ ; appᵇ ; boolᶠ ; equᶠ ;
-    evalᶠ ; trustᶠ ; Holdsᶠ ; holdsᶠ ; _⇔_ ; _⇔ᵇ_
+    evalᶠ ; trustᶠ ; Holdsᶠ ; holdsᶠ ; _⇔ᵇ_
   )
 
 env =
