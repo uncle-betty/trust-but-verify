@@ -403,12 +403,12 @@ simpl-sound {inj₂ (join c′) ∷ xs} {s} h with eval⁺ c′ s | inspect (eva
 simpl-sound {inj₂ (skip l′) ∷ xs} {s} h = simpl-sound {xs} {insert l′ s} h
 
 -- LFSC: satlem_simplify
-simpl-mp : ∀ {c₁ c₂} → Holds⁺ c₁ → (Holdsᶜ (simpl c₁ empty) → Holdsᶜ c₂) → Holdsᶜ c₂
-simpl-mp (holds⁺ c₁ p₁) fn = fn (holdsᶜ (simpl c₁ empty) (simpl-sound {c₁} {empty} p₁))
+mp⁺ : ∀ {c₁ c₂} → Holds⁺ c₁ → (Holdsᶜ (simpl c₁ empty) → Holdsᶜ c₂) → Holdsᶜ c₂
+mp⁺ (holds⁺ c₁ p₁) fn = fn (holdsᶜ (simpl c₁ empty) (simpl-sound {c₁} {empty} p₁))
 
 -- LFSC: satlem
-mp : ∀ {c₁ c₂} → Holdsᶜ c₁ → (Holdsᶜ c₁ → Holdsᶜ c₂) → Holdsᶜ c₂
-mp h₁ fn = fn h₁
+mpᶜ : ∀ {c₁ c₂} → Holdsᶜ c₁ → (Holdsᶜ c₁ → Holdsᶜ c₂) → Holdsᶜ c₂
+mpᶜ h₁ fn = fn h₁
 
 data From (A : Set) (c : Clause⁺) : Set where
   from : (A → Holds⁺ c) → From A c

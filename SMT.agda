@@ -356,8 +356,8 @@ module Rules (env : Env) where
   clausi-f (holds .falseᶠ ())
 
   -- LFSC: th_let_pf
-  mpᶠ : ∀ {f} → Holds f → (Holds f → Holdsᶜ []) → Holdsᶜ []
-  mpᶠ {f} h fn = fn h
+  mp : ∀ {f} → Holds f → (Holds f → Holdsᶜ []) → Holdsᶜ []
+  mp {f} h fn = fn h
 
   -- LFSC: iff_symm
   x≡ᵇx : ∀ {f} → Holds (iffᶠ f f)

@@ -21,10 +21,10 @@ env =
 open import SAT env
   using (
     pos ; neg ; Holdsᶜ ; expand ; from⁺ ; fromᶜ ;
-    resolve-r ; resolve-r⁺ ; resolve-q ; resolve-q⁺ ; mp ; simpl-mp
+    resolve-r ; resolve-r⁺ ; resolve-q ; resolve-q⁺ ; mpᶜ ; mp⁺
   )
 
-open S.Rules env using (Atom ; atom ; mpᶠ ; assum ; assum-¬ ; clausi-f ; contra ; final)
+open S.Rules env using (Atom ; atom ; mp ; assum ; assum-¬ ; clausi-f ; contra ; final)
 
 -- SAT test #1
 
@@ -37,7 +37,7 @@ sat₁ a b r =
   let r⁺ = expand r in
   let x₁ = resolve-r a⁺ r⁺ (var 0) in
   let x₂ = resolve-q b⁺ x₁ (var 1) in
-  simpl-mp x₂ id
+  mp⁺ x₂ id
 
 -- SAT test #2
 
@@ -51,7 +51,7 @@ sat₂ : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
 sat₂ a b r =
   let x₁ = resolve-r⁺ a r  (var 0) in
   let x₂ = resolve-q⁺ b x₁ (var 1) in
-  simpl-mp x₂ id
+  mp⁺ x₂ id
 
 -- SMT test #1
 
@@ -60,14 +60,14 @@ smt₁ =
   λ (as₁ : Holds trueᶠ) →
   λ (as₂ : Holds (notᶠ (iffᶠ (appᵇ x) (appᵇ x)))) →
   let let₁ = falseᶠ in
-  mpᶠ (trust falseᶠ) λ pa₁ →
-  mpᶠ (trust (notᶠ let₁)) λ pa₂ →
+  mp (trust falseᶠ) λ pa₁ →
+  mp (trust (notᶠ let₁)) λ pa₂ →
   -- instead of decl_atom
   let v₁ = var 1 in
   let a₁ = atom v₁ let₁ refl in
-  mp (assum a₁ λ l₃ → clausi-f (contra l₃ pa₂)) λ pb₁ →
-  mp (assum-¬ a₁ λ l₂ → clausi-f (contra pa₁ l₂)) λ pb₄ →
-  simpl-mp (resolve-r⁺ pb₄ pb₁ v₁) id
+  mpᶜ (assum a₁ λ l₃ → clausi-f (contra l₃ pa₂)) λ pb₁ →
+  mpᶜ (assum-¬ a₁ λ l₂ → clausi-f (contra pa₁ l₂)) λ pb₄ →
+  mp⁺ (resolve-r⁺ pb₄ pb₁ v₁) id
 
 prop₁ : (x : Bool) → T x ⇔ T x
 prop₁ x = final (iffᶠ (appᵇ x) (appᵇ x)) (smt₁ x (holds trueᶠ refl))
