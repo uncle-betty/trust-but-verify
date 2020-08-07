@@ -22,17 +22,17 @@ open import Env using (Var ; var ; Env ; evalᵛ)
 
 --- SMT ---
 
-data Formula : Bool → Set₁
+data Formula : Set₁
 
-formula-op₀ = {ex : Bool} → Formula ex
--- LFSC: formula_op1 (extended)
-formula-op₁ = {ex : Bool} → Formula ex → Formula ex
--- LFSC: formula_op2 (extended)
-formula-op₂ = {ex : Bool} → Formula ex → Formula ex → Formula ex
--- LFSC: formula_op3 (extended)
-formula-op₃ = {ex : Bool} → Formula ex → Formula ex → Formula ex → Formula ex
+formula-op₀ = Formula
+-- LFSC: formula_op1
+formula-op₁ = Formula → Formula
+-- LFSC: formula_op2
+formula-op₂ =  Formula → Formula → Formula
+-- LFSC: formula_op3
+formula-op₃ = Formula → Formula → Formula → Formula
 
--- LFSC: formula (extended)
+-- LFSC: formula
 data Formula where
   -- LFSC: true
   trueᶠ  : formula-op₀
@@ -55,14 +55,14 @@ data Formula where
   iteᶠ   : formula-op₃
 
   -- LFSC: = (Bool sort)
-  ≡ᵇ     : {ex : Bool} → Bool → Bool → Formula ex
+  ≡ᵇ     : Bool → Bool → Formula
   -- LFSC: p_app
-  appᵇ   : {ex : Bool} → Bool → Formula ex
+  appᵇ   : Bool → Formula
 
   -- extension - boolean subformulas
-  boolˣ  : Formula true → Formula true
+  boolˣ  : Formula → Formula
   -- extension - boolean equalities
-  equˣ   : Formula true → Formula true → Formula true
+  equˣ   : Formula → Formula → Formula
 
 infix 3 _→ᵇ_
 
@@ -89,7 +89,7 @@ x⇔ᵇx : ∀ b → (b ⇔ᵇ b) ≡ true
 x⇔ᵇx true  = refl
 x⇔ᵇx false = refl
 
-eval : {ex : Bool} → Formula ex → Bool
+eval : Formula → Bool
 eval trueᶠ = true
 eval falseᶠ = false
 
@@ -107,7 +107,7 @@ eval (appᵇ b) = b
 eval (boolˣ f) = eval f
 eval (equˣ f₁ f₂) = eval f₁ ⇔ᵇ eval f₂
 
-prop : {ex : Bool} → Formula ex → Set
+prop : Formula → Set
 prop trueᶠ  = ⊤
 prop falseᶠ = ⊥
 
@@ -125,8 +125,8 @@ prop (appᵇ b) = T b
 prop (boolˣ f) = T (eval f)
 prop (equˣ f₁ f₂) = eval f₁ ≡ eval f₂
 
-prove : ∀ {ex} → (f : Formula ex) → eval f ≡ true → prop f
-prove-¬ : ∀ {ex} → (f : Formula ex) → eval f ≡ false → ¬ prop f
+prove : ∀ f → eval f ≡ true → prop f
+prove-¬ : ∀ f → eval f ≡ false → ¬ prop f
 
 prove trueᶠ p = tt
 
@@ -280,7 +280,7 @@ prove-¬ (appᵇ b) refl = id
 prove-¬ (boolˣ f) p r = subst T p r
 prove-¬ (equˣ f₁ f₂) p = ⇔ᵇ≡f⇒≢ (eval f₁) (eval f₂) p
 
-strip : {ex : Bool} → Formula ex → Formula false
+strip : Formula → Formula
 strip trueᶠ = trueᶠ
 strip falseᶠ = falseᶠ
 
@@ -298,7 +298,7 @@ strip (appᵇ b) = appᵇ b
 strip (boolˣ f) = strip f
 strip (equˣ f₁ f₂) = iffᶠ (strip f₁) (strip f₂)
 
-strip-sound : ∀ {ex} → (f : Formula ex) → eval (strip f) ≡ eval f
+strip-sound : ∀ f → eval (strip f) ≡ eval f
 
 strip-sound trueᶠ = refl
 strip-sound falseᶠ = refl
@@ -318,18 +318,18 @@ strip-sound (boolˣ f) = strip-sound f
 strip-sound (equˣ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
 
 -- LFSC: th_holds
-data Holds : Formula false → Set where
-  holds : (f : Formula false) → eval f ≡ true → Holds f
+data Holds : Formula → Set where
+  holds : ∀ f → eval f ≡ true → Holds f
 
 module Rules (env : Env) where
 
   open import SAT env
     using (pos ; neg ; Holdsᶜ ; holdsᶜ ; holdsᶜ-[] ; evalᶜ ; not-t⇒f ; f⇒not-t)
 
-  final : (f : Formula true) → (Holds (notᶠ (strip f)) → Holdsᶜ []) → prop f
+  final : ∀ f → (Holds (notᶠ (strip f)) → Holdsᶜ []) → prop f
   final f h = prove f $ subst (_≡ true) (strip-sound f) (lem (strip f) h)
     where
-    lem : (f : Formula false) → (Holds (notᶠ f) → Holdsᶜ []) → eval f ≡ true
+    lem : ∀ f → (Holds (notᶠ f) → Holdsᶜ []) → eval f ≡ true
     lem f h with eval f | inspect eval f
     ... | true  | [ eq ] = refl
     ... | false | [ eq ] = contradiction (holds (notᶠ f) (f⇒not-t eq)) (holdsᶜ-[] ∘ h)
@@ -397,8 +397,8 @@ module Rules (env : Env) where
   x≡t⇒x≡tᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: atom
-  data Atom : Var → Formula false → Set where
-    atom : (v : Var) → (f : Formula false) → evalᵛ env v ≡ eval f → Atom v f
+  data Atom : Var → Formula → Set where
+    atom : ∀ v f → evalᵛ env v ≡ eval f → Atom v f
 
   -- XXX - cover bvatom
 
@@ -622,4 +622,4 @@ postulate
   -- LFSC: trust
   trust-f : Holds falseᶠ
   -- LFSC: trust_f
-  trust : (f : Formula false) → Holds f
+  trust : ∀ f → Holds f

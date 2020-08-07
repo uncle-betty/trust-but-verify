@@ -15,7 +15,7 @@ open import SMT as S
   )
 
 env =
-  assignᵛ (var 1) (eval {false} falseᶠ) $
+  assignᵛ (var 1) (eval falseᶠ) $
   ε
 
 open import SAT env
