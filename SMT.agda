@@ -1,7 +1,7 @@
 module SMT where
 
 open import Data.Bool using (Bool ; true ; false ; _∧_ ; _∨_ ; not ; _xor_ ; if_then_else_ ; T)
-open import Data.Bool.Properties using (∨-identityʳ ; not-¬)
+open import Data.Bool.Properties using (∨-identityʳ ; ∨-zeroʳ ; not-¬)
 open import Data.Empty using (⊥)
 open import Data.List using ([] ; _∷_)
 open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂)
@@ -59,10 +59,14 @@ data Formula where
   -- LFSC: p_app
   appᵇ   : Bool → Formula
 
+  -- XXX - cover ite, let, flet
+
   -- extension - boolean subformulas
   boolˣ  : Formula → Formula
   -- extension - boolean equalities
   equˣ   : Formula → Formula → Formula
+
+-- LFSC: sort, term replaced by Bool and BitVec
 
 infix 3 _→ᵇ_
 
@@ -585,6 +589,60 @@ module Rules (env : Env) where
     lem | false | true  = contradiction p (not-¬ refl)
     lem | false | false = refl
 
+  -- LFSC: ite_elim_1
+  ite-elim-then : ∀ {f₁ f₂ f₃} → Holds (iteᶠ f₁ f₂ f₃) → Holds (orᶠ (notᶠ f₁) f₂)
+  ite-elim-then {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
+    where
+    lem : not (eval f₁) ∨ eval f₂ ≡ true
+    lem with eval f₁
+    ... | true  = p
+    ... | false = refl
+
+  -- LFSC: ite_elim_2
+  ite-elim-else : ∀ {f₁ f₂ f₃} → Holds (iteᶠ f₁ f₂ f₃) → Holds (orᶠ f₁ f₃)
+  ite-elim-else {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
+    where
+    lem : eval f₁ ∨ eval f₃ ≡ true
+    lem with eval f₁
+    ... | true  = refl
+    ... | false = p
+
+  -- LFSC: ite_elim_3
+  ite-elim-both : ∀ {f₁ f₂ f₃} → Holds (iteᶠ f₁ f₂ f₃) → Holds (orᶠ f₂ f₃)
+  ite-elim-both {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
+    where
+    lem : eval f₂ ∨ eval f₃ ≡ true
+    lem with eval f₁
+    ... | true  rewrite p = refl
+    ... | false rewrite p = ∨-zeroʳ (eval f₂)
+
+  -- LFSC: not_ite_elim_1
+  ¬-ite-elim-then : ∀ {f₁ f₂ f₃} → Holds (notᶠ (iteᶠ f₁ f₂ f₃)) → Holds (orᶠ (notᶠ f₁) (notᶠ f₂))
+  ¬-ite-elim-then {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
+    where
+    lem : not (eval f₁) ∨ not (eval f₂) ≡ true
+    lem with eval f₁
+    ... | true  = p
+    ... | false = refl
+
+  -- LFSC: not_ite_elim_2
+  ¬-ite-elim-else : ∀ {f₁ f₂ f₃} → Holds (notᶠ (iteᶠ f₁ f₂ f₃)) → Holds (orᶠ f₁ (notᶠ f₃))
+  ¬-ite-elim-else {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
+    where
+    lem : eval f₁ ∨ not (eval f₃) ≡ true
+    lem with eval f₁
+    ... | true  = refl
+    ... | false = p
+
+  -- LFSC: not_ite_elim_3
+  ¬-ite-elim-both : ∀ {f₁ f₂ f₃} → Holds (notᶠ (iteᶠ f₁ f₂ f₃)) → Holds (orᶠ (notᶠ f₂) (notᶠ f₃))
+  ¬-ite-elim-both {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
+    where
+    lem : not (eval f₂) ∨ not (eval f₃) ≡ true
+    lem with eval f₁
+    ... | true  rewrite p = refl
+    ... | false rewrite p = ∨-zeroʳ (not (eval f₂))
+
   -- LFSC: ast
   assum : ∀ {v f c} → Atom v f → (Holds f → Holdsᶜ c) → Holdsᶜ (neg v ∷ c)
   assum {v} {f} {c} (atom .v .f a) fn = holdsᶜ (neg v ∷ c) lem₂
@@ -614,6 +672,9 @@ module Rules (env : Env) where
     lem₂ with eval f | inspect eval f
     lem₂ | true  | _      rewrite a = refl
     lem₂ | false | [ eq ] rewrite a = lem₁ fn eq
+
+-- XXX - cover bv_asf, bv_ast,
+-- XXX - cover mpz_sub, mp_ispos, mpz_eq, mpz_lt, mpz_lte
 
 --- Base theory ---
 
