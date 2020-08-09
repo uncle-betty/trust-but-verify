@@ -55,7 +55,7 @@ data Formula where
   iteᶠ   : formula-op₃
 
   -- LFSC: = (Bool sort)
-  ≡ᵇ     : Bool → Bool → Formula
+  equᵇ   : Bool → Bool → Formula
   -- LFSC: p_app
   appᵇ   : Bool → Formula
 
@@ -74,24 +74,24 @@ _→ᵇ_ : Bool → Bool → Bool
 true  →ᵇ b = b
 false →ᵇ _ = true
 
-infix 3 _⇔ᵇ_
+infix 3 _≡ᵇ_
 
-_⇔ᵇ_ : Bool → Bool → Bool
-true  ⇔ᵇ true  = true
-false ⇔ᵇ false = true
-_     ⇔ᵇ _     = false
+_≡ᵇ_ : Bool → Bool → Bool
+true  ≡ᵇ true  = true
+false ≡ᵇ false = true
+_     ≡ᵇ _     = false
 
-⇔ᵇ≡t⇒≡ : ∀ b₁ b₂ → (b₁ ⇔ᵇ b₂) ≡ true → b₁ ≡ b₂
-⇔ᵇ≡t⇒≡ true true refl = refl
-⇔ᵇ≡t⇒≡ false false refl = refl
+≡ᵇ≡t⇒≡ : ∀ b₁ b₂ → (b₁ ≡ᵇ b₂) ≡ true → b₁ ≡ b₂
+≡ᵇ≡t⇒≡ true true refl = refl
+≡ᵇ≡t⇒≡ false false refl = refl
 
-⇔ᵇ≡f⇒≢ : ∀ b₁ b₂ → (b₁ ⇔ᵇ b₂) ≡ false → b₁ ≢ b₂
-⇔ᵇ≡f⇒≢ true false p = λ ()
-⇔ᵇ≡f⇒≢ false true p = λ ()
+≡ᵇ≡f⇒≢ : ∀ b₁ b₂ → (b₁ ≡ᵇ b₂) ≡ false → b₁ ≢ b₂
+≡ᵇ≡f⇒≢ true false p = λ ()
+≡ᵇ≡f⇒≢ false true p = λ ()
 
-x⇔ᵇx : ∀ b → (b ⇔ᵇ b) ≡ true
-x⇔ᵇx true  = refl
-x⇔ᵇx false = refl
+x≡ᵇx : ∀ b → (b ≡ᵇ b) ≡ true
+x≡ᵇx true  = refl
+x≡ᵇx false = refl
 
 eval : Formula → Bool
 eval trueᶠ = true
@@ -101,15 +101,15 @@ eval (notᶠ f) = not (eval f)
 eval (andᶠ f₁ f₂) = eval f₁ ∧ eval f₂
 eval (orᶠ f₁ f₂) = eval f₁ ∨ eval f₂
 eval (implᶠ f₁ f₂) = eval f₁ →ᵇ eval f₂
-eval (iffᶠ f₁ f₂) = eval f₁ ⇔ᵇ eval f₂
+eval (iffᶠ f₁ f₂) = eval f₁ ≡ᵇ eval f₂
 eval (xorᶠ f₁ f₂) = eval f₁ xor eval f₂
 eval (iteᶠ f₁ f₂ f₃) = if eval f₁ then eval f₂ else eval f₃
 
-eval (≡ᵇ b₁ b₂) = b₁ ⇔ᵇ b₂
+eval (equᵇ b₁ b₂) = b₁ ≡ᵇ b₂
 eval (appᵇ b) = b
 
 eval (boolˣ f) = eval f
-eval (equˣ f₁ f₂) = eval f₁ ⇔ᵇ eval f₂
+eval (equˣ f₁ f₂) = eval f₁ ≡ᵇ eval f₂
 
 prop : Formula → Set
 prop trueᶠ  = ⊤
@@ -123,7 +123,7 @@ prop (iffᶠ f₁ f₂) = prop f₁ ⇔ prop f₂
 prop (xorᶠ f₁ f₂) = (prop f₁ × ¬ prop f₂) ⊎ (¬ prop f₁ × prop f₂)
 prop (iteᶠ f₁ f₂ f₃) = (prop f₁ × prop f₂) ⊎ (¬ prop f₁ × prop f₃)
 
-prop (≡ᵇ b₁ b₂) = b₁ ≡ b₂
+prop (equᵇ b₁ b₂) = b₁ ≡ b₂
 prop (appᵇ b) = T b
 
 prop (boolˣ f) = T (eval f)
@@ -187,11 +187,11 @@ prove (iteᶠ f₁ f₂ f₃) _  | false | [ eq₁ ] | _     | _       | true  |
 
 prove (iteᶠ f₁ f₂ f₃) () | false | _       | _     | _       | false | _
 
-prove (≡ᵇ b₁ b₂) p = ⇔ᵇ≡t⇒≡ b₁ b₂ p
+prove (equᵇ b₁ b₂) p = ≡ᵇ≡t⇒≡ b₁ b₂ p
 prove (appᵇ b) refl = tt
 
 prove (boolˣ f) p = subst T (sym p) tt
-prove (equˣ f₁ f₂) p = ⇔ᵇ≡t⇒≡ (eval f₁) (eval f₂) p
+prove (equˣ f₁ f₂) p = ≡ᵇ≡t⇒≡ (eval f₁) (eval f₂) p
 
 prove-¬ falseᶠ p = id
 
@@ -278,11 +278,11 @@ prove-¬ (iteᶠ f₁ f₂ f₃) _  (inj₁ r) | false | [ eq₁ ] | _     | _  
 prove-¬ (iteᶠ f₁ f₂ f₃) _  (inj₂ r) | false | _       | _     | _       | false | [ eq₃ ] =
   contradiction (proj₂ r) (prove-¬ f₃ eq₃)
 
-prove-¬ (≡ᵇ b₁ b₂) p = ⇔ᵇ≡f⇒≢ b₁ b₂ p
+prove-¬ (equᵇ b₁ b₂) p = ≡ᵇ≡f⇒≢ b₁ b₂ p
 prove-¬ (appᵇ b) refl = id
 
 prove-¬ (boolˣ f) p r = subst T p r
-prove-¬ (equˣ f₁ f₂) p = ⇔ᵇ≡f⇒≢ (eval f₁) (eval f₂) p
+prove-¬ (equˣ f₁ f₂) p = ≡ᵇ≡f⇒≢ (eval f₁) (eval f₂) p
 
 strip : Formula → Formula
 strip trueᶠ = trueᶠ
@@ -296,7 +296,7 @@ strip (iffᶠ f₁ f₂) = iffᶠ (strip f₁) (strip f₂)
 strip (xorᶠ f₁ f₂) = xorᶠ (strip f₁) (strip f₂)
 strip (iteᶠ f₁ f₂ f₃) = iteᶠ (strip f₁) (strip f₂) (strip f₃)
 
-strip (≡ᵇ b₁ b₂) = ≡ᵇ b₁ b₂
+strip (equᵇ b₁ b₂) = equᵇ b₁ b₂
 strip (appᵇ b) = appᵇ b
 
 strip (boolˣ f) = strip f
@@ -315,7 +315,7 @@ strip-sound (iffᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = ref
 strip-sound (xorᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
 strip-sound (iteᶠ f₁ f₂ f₃) rewrite strip-sound f₁ | strip-sound f₂ | strip-sound f₃ = refl
 
-strip-sound (≡ᵇ b₁ b₂) = refl
+strip-sound (equᵇ b₁ b₂) = refl
 strip-sound (appᵇ b) = refl
 
 strip-sound (boolˣ f) = strip-sound f
@@ -339,65 +339,65 @@ module Rules (env : Env) where
     ... | false | [ eq ] = contradiction (holds (notᶠ f) (f⇒not-t eq)) (holdsᶜ-[] ∘ h)
 
   -- LFSC: t_t_neq_f
-  t≢fᵇ : Holds (notᶠ (≡ᵇ true false))
+  t≢fᵇ : Holds (notᶠ (equᵇ true false))
   t≢fᵇ = holds _ refl
 
   -- LFSC: pred_eq_t
-  t⇒x≡tᵇ : ∀ {b} → Holds (appᵇ b) → Holds (≡ᵇ b true)
-  t⇒x≡tᵇ {true} (holds _ _) = holds _ refl
+  x⇒x≡tᵇ : ∀ {b} → Holds (appᵇ b) → Holds (equᵇ b true)
+  x⇒x≡tᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: pred_eq_f
-  f⇒x≡fᵇ : ∀ {b} → Holds (notᶠ (appᵇ b)) → Holds (≡ᵇ b false)
-  f⇒x≡fᵇ {false} (holds _ _) = holds _ refl
+  ¬x⇒x≡fᵇ : ∀ {b} → Holds (notᶠ (appᵇ b)) → Holds (equᵇ b false)
+  ¬x⇒x≡fᵇ {false} (holds _ _) = holds _ refl
 
   -- XXX - what does f_to_b do?
 
   -- LFSC: true_preds_equal
-  tt⇒x≡yᵇ : ∀ {b₁ b₂} → Holds (appᵇ b₁) → Holds (appᵇ b₂) → Holds (≡ᵇ b₁ b₂)
-  tt⇒x≡yᵇ {true} {true} (holds _ _) (holds _ _) = holds _ refl
+  x⇒y⇒x≡yᵇ : ∀ {b₁ b₂} → Holds (appᵇ b₁) → Holds (appᵇ b₂) → Holds (equᵇ b₁ b₂)
+  x⇒y⇒x≡yᵇ {true} {true} (holds _ _) (holds _ _) = holds _ refl
 
   -- LFSC: false_preds_equal
-  ff⇒x≡yᵇ : ∀ {b₁ b₂} → Holds (notᶠ (appᵇ b₁)) → Holds (notᶠ (appᵇ b₂)) → Holds (≡ᵇ b₁ b₂)
-  ff⇒x≡yᵇ {false} {false} (holds _ _) (holds _ _) = holds _ refl
+  ¬x⇒¬y⇒x≡yᵇ : ∀ {b₁ b₂} → Holds (notᶠ (appᵇ b₁)) → Holds (notᶠ (appᵇ b₂)) → Holds (equᵇ b₁ b₂)
+  ¬x⇒¬y⇒x≡yᵇ {false} {false} (holds _ _) (holds _ _) = holds _ refl
 
   -- LFSC: pred_refl_pos
-  t⇒x≡xᵇ : ∀ {b} → Holds (appᵇ b) → Holds (≡ᵇ b b)
-  t⇒x≡xᵇ (holds _ refl) = holds _ refl
+  x⇒x≡xᵇ : ∀ {b} → Holds (appᵇ b) → Holds (equᵇ b b)
+  x⇒x≡xᵇ (holds _ refl) = holds _ refl
 
   -- LFSC: pred_refl_neg
-  f⇒x≡xᵇ : ∀ {b} → Holds (notᶠ (appᵇ b)) → Holds (≡ᵇ b b)
-  f⇒x≡xᵇ (holds _ p) rewrite not-t⇒f p = holds _ refl
+  ¬x⇒x≡xᵇ : ∀ {b} → Holds (notᶠ (appᵇ b)) → Holds (equᵇ b b)
+  ¬x⇒x≡xᵇ (holds _ p) rewrite not-t⇒f p = holds _ refl
 
   -- LFSC: pred_not_iff_f
-  ¬f≡x⇒t≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ falseᶠ (appᵇ b))) → Holds (≡ᵇ true b)
+  ¬f≡x⇒t≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ falseᶠ (appᵇ b))) → Holds (equᵇ true b)
   ¬f≡x⇒t≡xᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: pred_not_iff_f_2
-  ¬x≡f⇒x≡tᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) falseᶠ)) → Holds (≡ᵇ b true)
+  ¬x≡f⇒x≡tᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) falseᶠ)) → Holds (equᵇ b true)
   ¬x≡f⇒x≡tᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: pred_not_iff_t
-  ¬t≡x⇒f≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ trueᶠ (appᵇ b))) → Holds (≡ᵇ false b)
+  ¬t≡x⇒f≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ trueᶠ (appᵇ b))) → Holds (equᵇ false b)
   ¬t≡x⇒f≡xᵇ {false} (holds _ _) = holds _ refl
 
   -- LFSC: pred_not_iff_t_2
-  ¬x≡t⇒xfxᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) trueᶠ)) → Holds (≡ᵇ b false)
+  ¬x≡t⇒xfxᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) trueᶠ)) → Holds (equᵇ b false)
   ¬x≡t⇒xfxᵇ {false} (holds _ _) = holds _ refl
 
   -- LFSC: pred_iff_f
-  f≡x⇒f≡xᵇ : ∀ {b} → Holds (iffᶠ falseᶠ (appᵇ b)) → Holds (≡ᵇ false b)
+  f≡x⇒f≡xᵇ : ∀ {b} → Holds (iffᶠ falseᶠ (appᵇ b)) → Holds (equᵇ false b)
   f≡x⇒f≡xᵇ {false} (holds _ _) = holds _ refl
 
   -- LFSC: pred_iff_f_2
-  x≡f⇒x≡fᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) falseᶠ) → Holds (≡ᵇ b false)
+  x≡f⇒x≡fᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) falseᶠ) → Holds (equᵇ b false)
   x≡f⇒x≡fᵇ {false} (holds _ _) = holds _ refl
 
   -- LFSC: pred_iff_t
-  t≡x⇒t≡xᵇ : ∀ {b} → Holds (iffᶠ trueᶠ (appᵇ b)) → Holds (≡ᵇ true b)
+  t≡x⇒t≡xᵇ : ∀ {b} → Holds (iffᶠ trueᶠ (appᵇ b)) → Holds (equᵇ true b)
   t≡x⇒t≡xᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: pred_iff_t_2
-  x≡t⇒x≡tᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) trueᶠ) → Holds (≡ᵇ b true)
+  x≡t⇒x≡tᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) trueᶠ) → Holds (equᵇ b true)
   x≡t⇒x≡tᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: atom
@@ -431,8 +431,8 @@ module Rules (env : Env) where
   mp {f} h fn = fn h
 
   -- LFSC: iff_symm
-  x≡ᵇx : ∀ {f} → Holds (iffᶠ f f)
-  x≡ᵇx {f} = holds (iffᶠ f f) (x⇔ᵇx (eval f))
+  x≡x : ∀ {f} → Holds (iffᶠ f f)
+  x≡x {f} = holds (iffᶠ f f) (x≡ᵇx (eval f))
 
   -- LFSC: contra
   contra : ∀ {f} → Holds f → Holds (notᶠ f) → Holds falseᶠ
@@ -549,7 +549,7 @@ module Rules (env : Env) where
   ¬-⇔-elim : ∀ {f₁ f₂} → Holds (notᶠ (iffᶠ f₁ f₂)) → Holds (iffᶠ f₁ (notᶠ f₂))
   ¬-⇔-elim {f₁} {f₂} (holds _ p) = holds _ lem
     where
-    lem : (eval f₁ ⇔ᵇ not (eval f₂)) ≡ true
+    lem : (eval f₁ ≡ᵇ not (eval f₂)) ≡ true
     lem with eval f₁ | eval f₂
     lem | true  | true  = contradiction p (not-¬ refl)
     lem | true  | false = refl
@@ -582,7 +582,7 @@ module Rules (env : Env) where
   ¬-xor-elim : ∀ {f₁ f₂} → Holds (notᶠ (xorᶠ f₁ f₂)) → Holds (iffᶠ f₁ f₂)
   ¬-xor-elim {f₁} {f₂} (holds _ p) = holds _ lem
     where
-    lem : (eval f₁ ⇔ᵇ eval f₂) ≡ true
+    lem : (eval f₁ ≡ᵇ eval f₂) ≡ true
     lem with eval f₁ | eval f₂
     lem | true  | true  = refl
     lem | true  | false = contradiction p (not-¬ refl)
