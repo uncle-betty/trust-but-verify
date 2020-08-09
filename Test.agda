@@ -7,11 +7,13 @@ open import Function using (id ; _$_)
 open import Function.Equivalence using (_⇔_)
 open import Relation.Binary.PropositionalEquality using (_≡_ ; refl)
 
+open import Base using (trust)
 open import Env using (var ; ε ; assignᵛ)
+
 open import SMT as S
   using (
     trueᶠ ; falseᶠ ; notᶠ ; iffᶠ ; appᵇ ; boolˣ ; equˣ ;
-    eval ; trust ; Holds ; holds ; _⇔ᵇ_
+    eval ; Holds ; holds ; _≡ᵇ_
   )
 
 env =
@@ -72,7 +74,7 @@ smt₁ =
 prop₁ : (x : Bool) → T x ⇔ T x
 prop₁ x = final (iffᶠ (appᵇ x) (appᵇ x)) (smt₁ x (holds trueᶠ refl))
 
-bool₁ : (x : Bool) → T (x ⇔ᵇ x)
+bool₁ : (x : Bool) → T (x ≡ᵇ x)
 bool₁ x = final (boolˣ (iffᶠ (appᵇ x) (appᵇ x))) (smt₁ x (holds trueᶠ refl))
 
 equ₁ : (x : Bool) → x ≡ x

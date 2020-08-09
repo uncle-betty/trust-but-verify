@@ -20,8 +20,6 @@ open import Relation.Nullary.Negation using (contradiction)
 
 open import Env using (Var ; var ; Env ; evalᵛ)
 
---- SMT ---
-
 data Formula : Set₁
 
 formula-op₀ = Formula
@@ -675,12 +673,3 @@ module Rules (env : Env) where
 
 -- XXX - cover bv_asf, bv_ast,
 -- XXX - cover mpz_sub, mp_ispos, mpz_eq, mpz_lt, mpz_lte
-
---- Base theory ---
-
--- XXX - remove one day, CVC4 promises that these are only temporary
-postulate
-  -- LFSC: trust
-  trust-f : Holds falseᶠ
-  -- LFSC: trust_f
-  trust : ∀ f → Holds f
