@@ -648,8 +648,7 @@ module Rules (env : Env) where
     where
 
     lem₁ : ∀ {f c} → (Holds f → Holdsᶜ c) → eval f ≡ true → evalᶜ c ≡ true
-    lem₁ {f} {c} fn e with fn (holds f e)
-    ... | holdsᶜ _ h = h
+    lem₁ {f} {c} fn e with holdsᶜ _ h ← fn (holds f e) = h
 
     lem₂ : not (evalᵛ env v) ∨ evalᶜ c ≡ true
     lem₂ with eval f | inspect eval f
@@ -663,8 +662,7 @@ module Rules (env : Env) where
     where
 
     lem₁ : ∀ {f c} → (Holds (notᶠ f) → Holdsᶜ c) → eval f ≡ false → evalᶜ c ≡ true
-    lem₁ {f} {c} fn e with fn (holds (notᶠ f) (f⇒not-t e))
-    ... | holdsᶜ _ h = h
+    lem₁ {f} {c} fn e with holdsᶜ _ h ← fn (holds (notᶠ f) (f⇒not-t e)) = h
 
     lem₂ : evalᵛ env v ∨ evalᶜ c ≡ true
     lem₂ with eval f | inspect eval f

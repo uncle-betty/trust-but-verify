@@ -291,8 +291,8 @@ insert≡put k f (node (k′ , v′) tˡ tʳ b) (l<k , k<u) | tri< p₁ _ _ | [ 
         | put-++ˡ f v′ (flat tˡ) (flat tʳ) p₁
   = refl
 
-insert≡put k f (node (k′ , v′) tˡ tʳ b) (l<k , k<u) | tri≈ p₁ p₂ _ | [ eq₁ ] with equal p₂
-... | refl
+insert≡put k f (node (k′ , v′) tˡ tʳ b) (l<k , k<u) | tri≈ p₁ p₂ _ | [ eq₁ ]
+  with refl ← equal p₂
   rewrite reduce (symᴷ p₂) v′
         | reduce p₂ (f (just v′))
         | put-++ʳ f v′ (flat tˡ) (flat tʳ) (all-up tˡ) p₁
@@ -331,8 +331,8 @@ get-insed {k} f ((k′ , v′) ∷ kvs′) | tri≈ _ p₁ _ | [ eq₁ ]
 ... | tri< p₂ _  _  | tri> _  _  p₃ | _       | _       rewrite eq₁ | reduce p₁ (f nothing) = refl
 ... | tri> _  _  p₂ | tri< p₃ _  _  | [ eq₂ ] | [ eq₃ ] rewrite eq₃ = get-insed f kvs′
 
-... | tri≈ _  p₂ _  | tri≈ _  p₃ _  | [ eq₂ ] | [ eq₃ ] with equal p₂
-... | refl
+... | tri≈ _  p₂ _  | tri≈ _  p₃ _  | [ eq₂ ] | [ eq₃ ]
+  with refl ← equal p₂
   rewrite eq₃
         | reduce p₃ v′
         | reduce (symᴷ p₂) v′
