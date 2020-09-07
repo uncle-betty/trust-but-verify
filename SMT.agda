@@ -22,7 +22,7 @@ open import Relation.Binary.Bundles using (DecSetoid)
 open import Relation.Binary.PropositionalEquality
   using (_≡_ ; _≢_ ; refl ; subst ; sym ; inspect ; [_])
 
-open import Relation.Nullary using (¬_ ; does ; yes ; no)
+open import Relation.Nullary using (¬_ ; does ; _because_ ; ofʸ ; ofⁿ)
 open import Relation.Nullary.Negation using (contradiction)
 
 open import Env using (Var ; var ; Env ; evalᵛ)
@@ -196,8 +196,8 @@ prove (iteᶠ f₁ f₂ f₃) _  | false | [ eq₁ ] | _     | _       | true  |
 prove (iteᶠ f₁ f₂ f₃) () | false | _       | _     | _       | false | _
 
 prove (equᶠ {{s}} x₁ x₂) with DecSetoid._≟_ s x₁ x₂
-... | yes p = λ { refl → p }
-... | no  p = λ ()
+... | true  because ofʸ p = λ { refl → p }
+... | false because ofⁿ _ = λ ()
 
 prove (appᵇ b) refl = tt
 
@@ -290,8 +290,8 @@ prove-¬ (iteᶠ f₁ f₂ f₃) _  (inj₂ r) | false | _       | _     | _    
   contradiction (proj₂ r) (prove-¬ f₃ eq₃)
 
 prove-¬ (equᶠ {{s}} x₁ x₂) with DecSetoid._≟_ s x₁ x₂
-... | yes p = λ ()
-... | no  p = λ { refl → p }
+... | true  because ofʸ _ = λ ()
+... | false because ofⁿ p = λ { refl → p }
 
 prove-¬ (appᵇ b) refl = id
 
