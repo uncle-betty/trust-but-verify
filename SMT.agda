@@ -1,7 +1,12 @@
 module SMT where
 
+open import Agda.Primitive using (Level) renaming (lzero to 0ℓ)
+
 open import Data.Bool using (Bool ; true ; false ; _∧_ ; _∨_ ; not ; _xor_ ; if_then_else_ ; T)
-open import Data.Bool.Properties using (∨-identityʳ ; ∨-zeroʳ ; not-¬)
+
+open import Data.Bool.Properties
+  using (∨-identityʳ ; ∨-zeroʳ ; not-¬) renaming (≡-decSetoid to bool-setoid)
+
 open import Data.Empty using (⊥)
 open import Data.List using ([] ; _∷_)
 open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂)
@@ -12,13 +17,18 @@ open import Function using (id ; _∘_ ; _$_ ; const)
 open import Function.Equality using (Π)
 open import Function.Equivalence using (_⇔_ ; equivalence)
 
+open import Relation.Binary.Bundles using (DecSetoid)
+
 open import Relation.Binary.PropositionalEquality
   using (_≡_ ; _≢_ ; refl ; subst ; sym ; inspect ; [_])
 
-open import Relation.Nullary using (¬_)
+open import Relation.Nullary using (¬_ ; does ; yes ; no)
 open import Relation.Nullary.Negation using (contradiction)
 
 open import Env using (Var ; var ; Env ; evalᵛ)
+
+instance
+  _ = bool-setoid
 
 data Formula : Set₁
 
@@ -51,9 +61,9 @@ data Formula where
   xorᶠ   : formula-op₂
   -- LFSC: ifte
   iteᶠ   : formula-op₃
+  -- LFSC: =
+  equᶠ   : {{s : DecSetoid 0ℓ 0ℓ}} → DecSetoid.Carrier s → DecSetoid.Carrier s → Formula
 
-  -- LFSC: = (Bool sort)
-  equᵇ   : Bool → Bool → Formula
   -- LFSC: p_app
   appᵇ   : Bool → Formula
 
@@ -102,8 +112,8 @@ eval (implᶠ f₁ f₂) = eval f₁ →ᵇ eval f₂
 eval (iffᶠ f₁ f₂) = eval f₁ ≡ᵇ eval f₂
 eval (xorᶠ f₁ f₂) = eval f₁ xor eval f₂
 eval (iteᶠ f₁ f₂ f₃) = if eval f₁ then eval f₂ else eval f₃
+eval (equᶠ {{s}} x₁ x₂) = does (DecSetoid._≟_ s x₁ x₂)
 
-eval (equᵇ b₁ b₂) = b₁ ≡ᵇ b₂
 eval (appᵇ b) = b
 
 eval (boolˣ f) = eval f
@@ -120,8 +130,8 @@ prop (implᶠ f₁ f₂) = prop f₁ → prop f₂
 prop (iffᶠ f₁ f₂) = prop f₁ ⇔ prop f₂
 prop (xorᶠ f₁ f₂) = (prop f₁ × ¬ prop f₂) ⊎ (¬ prop f₁ × prop f₂)
 prop (iteᶠ f₁ f₂ f₃) = (prop f₁ × prop f₂) ⊎ (¬ prop f₁ × prop f₃)
+prop (equᶠ {{s}} x₁ x₂) = DecSetoid._≈_ s x₁ x₂
 
-prop (equᵇ b₁ b₂) = b₁ ≡ b₂
 prop (appᵇ b) = T b
 
 prop (boolˣ f) = T (eval f)
@@ -185,7 +195,10 @@ prove (iteᶠ f₁ f₂ f₃) _  | false | [ eq₁ ] | _     | _       | true  |
 
 prove (iteᶠ f₁ f₂ f₃) () | false | _       | _     | _       | false | _
 
-prove (equᵇ b₁ b₂) p = ≡ᵇ≡t⇒≡ b₁ b₂ p
+prove (equᶠ {{s}} x₁ x₂) with DecSetoid._≟_ s x₁ x₂
+... | yes p = λ { refl → p }
+... | no  p = λ ()
+
 prove (appᵇ b) refl = tt
 
 prove (boolˣ f) p = subst T (sym p) tt
@@ -276,7 +289,10 @@ prove-¬ (iteᶠ f₁ f₂ f₃) _  (inj₁ r) | false | [ eq₁ ] | _     | _  
 prove-¬ (iteᶠ f₁ f₂ f₃) _  (inj₂ r) | false | _       | _     | _       | false | [ eq₃ ] =
   contradiction (proj₂ r) (prove-¬ f₃ eq₃)
 
-prove-¬ (equᵇ b₁ b₂) p = ≡ᵇ≡f⇒≢ b₁ b₂ p
+prove-¬ (equᶠ {{s}} x₁ x₂) with DecSetoid._≟_ s x₁ x₂
+... | yes p = λ ()
+... | no  p = λ { refl → p }
+
 prove-¬ (appᵇ b) refl = id
 
 prove-¬ (boolˣ f) p r = subst T p r
@@ -293,8 +309,8 @@ strip (implᶠ f₁ f₂) = implᶠ (strip f₁) (strip f₂)
 strip (iffᶠ f₁ f₂) = iffᶠ (strip f₁) (strip f₂)
 strip (xorᶠ f₁ f₂) = xorᶠ (strip f₁) (strip f₂)
 strip (iteᶠ f₁ f₂ f₃) = iteᶠ (strip f₁) (strip f₂) (strip f₃)
+strip (equᶠ {{s}} x₁ x₂) = equᶠ {{s}} x₁ x₂
 
-strip (equᵇ b₁ b₂) = equᵇ b₁ b₂
 strip (appᵇ b) = appᵇ b
 
 strip (boolˣ f) = strip f
@@ -312,8 +328,8 @@ strip-sound (implᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = re
 strip-sound (iffᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
 strip-sound (xorᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
 strip-sound (iteᶠ f₁ f₂ f₃) rewrite strip-sound f₁ | strip-sound f₂ | strip-sound f₃ = refl
+strip-sound (equᶠ {{s}} x₁ x₂) = refl
 
-strip-sound (equᵇ b₁ b₂) = refl
 strip-sound (appᵇ b) = refl
 
 strip-sound (boolˣ f) = strip-sound f
@@ -337,65 +353,65 @@ module Rules (env : Env) where
     ... | false | [ eq ] = contradiction (holds (notᶠ f) (f⇒not-t eq)) (holdsᶜ-[] ∘ h)
 
   -- LFSC: t_t_neq_f
-  t≢fᵇ : Holds (notᶠ (equᵇ true false))
+  t≢fᵇ : Holds (notᶠ (equᶠ true false))
   t≢fᵇ = holds _ refl
 
   -- LFSC: pred_eq_t
-  x⇒x≡tᵇ : ∀ {b} → Holds (appᵇ b) → Holds (equᵇ b true)
+  x⇒x≡tᵇ : ∀ {b} → Holds (appᵇ b) → Holds (equᶠ b true)
   x⇒x≡tᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: pred_eq_f
-  ¬x⇒x≡fᵇ : ∀ {b} → Holds (notᶠ (appᵇ b)) → Holds (equᵇ b false)
+  ¬x⇒x≡fᵇ : ∀ {b} → Holds (notᶠ (appᵇ b)) → Holds (equᶠ b false)
   ¬x⇒x≡fᵇ {false} (holds _ _) = holds _ refl
 
   -- XXX - what does f_to_b do?
 
   -- LFSC: true_preds_equal
-  x⇒y⇒x≡yᵇ : ∀ {b₁ b₂} → Holds (appᵇ b₁) → Holds (appᵇ b₂) → Holds (equᵇ b₁ b₂)
+  x⇒y⇒x≡yᵇ : ∀ {b₁ b₂} → Holds (appᵇ b₁) → Holds (appᵇ b₂) → Holds (equᶠ b₁ b₂)
   x⇒y⇒x≡yᵇ {true} {true} (holds _ _) (holds _ _) = holds _ refl
 
   -- LFSC: false_preds_equal
-  ¬x⇒¬y⇒x≡yᵇ : ∀ {b₁ b₂} → Holds (notᶠ (appᵇ b₁)) → Holds (notᶠ (appᵇ b₂)) → Holds (equᵇ b₁ b₂)
+  ¬x⇒¬y⇒x≡yᵇ : ∀ {b₁ b₂} → Holds (notᶠ (appᵇ b₁)) → Holds (notᶠ (appᵇ b₂)) → Holds (equᶠ b₁ b₂)
   ¬x⇒¬y⇒x≡yᵇ {false} {false} (holds _ _) (holds _ _) = holds _ refl
 
   -- LFSC: pred_refl_pos
-  x⇒x≡xᵇ : ∀ {b} → Holds (appᵇ b) → Holds (equᵇ b b)
+  x⇒x≡xᵇ : ∀ {b} → Holds (appᵇ b) → Holds (equᶠ b b)
   x⇒x≡xᵇ (holds _ refl) = holds _ refl
 
   -- LFSC: pred_refl_neg
-  ¬x⇒x≡xᵇ : ∀ {b} → Holds (notᶠ (appᵇ b)) → Holds (equᵇ b b)
+  ¬x⇒x≡xᵇ : ∀ {b} → Holds (notᶠ (appᵇ b)) → Holds (equᶠ b b)
   ¬x⇒x≡xᵇ (holds _ p) rewrite not-t⇒f p = holds _ refl
 
   -- LFSC: pred_not_iff_f
-  ¬f≡x⇒t≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ falseᶠ (appᵇ b))) → Holds (equᵇ true b)
+  ¬f≡x⇒t≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ falseᶠ (appᵇ b))) → Holds (equᶠ true b)
   ¬f≡x⇒t≡xᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: pred_not_iff_f_2
-  ¬x≡f⇒x≡tᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) falseᶠ)) → Holds (equᵇ b true)
+  ¬x≡f⇒x≡tᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) falseᶠ)) → Holds (equᶠ b true)
   ¬x≡f⇒x≡tᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: pred_not_iff_t
-  ¬t≡x⇒f≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ trueᶠ (appᵇ b))) → Holds (equᵇ false b)
+  ¬t≡x⇒f≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ trueᶠ (appᵇ b))) → Holds (equᶠ false b)
   ¬t≡x⇒f≡xᵇ {false} (holds _ _) = holds _ refl
 
   -- LFSC: pred_not_iff_t_2
-  ¬x≡t⇒xfxᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) trueᶠ)) → Holds (equᵇ b false)
+  ¬x≡t⇒xfxᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) trueᶠ)) → Holds (equᶠ b false)
   ¬x≡t⇒xfxᵇ {false} (holds _ _) = holds _ refl
 
   -- LFSC: pred_iff_f
-  f≡x⇒f≡xᵇ : ∀ {b} → Holds (iffᶠ falseᶠ (appᵇ b)) → Holds (equᵇ false b)
+  f≡x⇒f≡xᵇ : ∀ {b} → Holds (iffᶠ falseᶠ (appᵇ b)) → Holds (equᶠ false b)
   f≡x⇒f≡xᵇ {false} (holds _ _) = holds _ refl
 
   -- LFSC: pred_iff_f_2
-  x≡f⇒x≡fᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) falseᶠ) → Holds (equᵇ b false)
+  x≡f⇒x≡fᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) falseᶠ) → Holds (equᶠ b false)
   x≡f⇒x≡fᵇ {false} (holds _ _) = holds _ refl
 
   -- LFSC: pred_iff_t
-  t≡x⇒t≡xᵇ : ∀ {b} → Holds (iffᶠ trueᶠ (appᵇ b)) → Holds (equᵇ true b)
+  t≡x⇒t≡xᵇ : ∀ {b} → Holds (iffᶠ trueᶠ (appᵇ b)) → Holds (equᶠ true b)
   t≡x⇒t≡xᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: pred_iff_t_2
-  x≡t⇒x≡tᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) trueᶠ) → Holds (equᵇ b true)
+  x≡t⇒x≡tᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) trueᶠ) → Holds (equᶠ b true)
   x≡t⇒x≡tᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: atom
