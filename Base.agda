@@ -6,6 +6,7 @@ open import Data.Bool using (true ; false ; not)
 open import Data.Bool.Properties using (not-¬)
 
 open import Function using (_$_ ; _∘_ ; it)
+open import Function.Equality using (_⟨$⟩_ ; _⟶_) renaming (cong to Π-cong)
 
 open import Relation.Binary.Bundles using () renaming (DecSetoid to DS)
 open import Relation.Binary.Properties.Setoid using (≉-sym ; ≉-respʳ ; ≉-respˡ)
@@ -19,7 +20,7 @@ open import Relation.Nullary.Negation using (contradiction)
 
 open import SMT using (Holds ; holds ; falseᶠ ; equᶠ ; notᶠ)
 
--- LFSC: arrow, apply - use native function types and application
+-- LFSC: arrow, apply - replaced by Agda function types and application
 
 postulate
   -- LFSC: trust
@@ -76,3 +77,11 @@ trans (holds (equᶠ x₁ x₂) _) (holds (equᶠ x₂ x₃) _) with DS._≟_ it
 ... | true because ofʸ p₁ | false because ofⁿ p₂ =
   let s′ = DS.setoid it in
   holds _ $ cong′ not $ dec-false (DS._≟_ it x₁ x₃) (≉-respˡ s′ (DS.sym it p₁) p₂)
+
+-- LFSC: cong
+-- XXX - simplified for now, no function equality
+cong : {{s₁ s₂ : DS 0ℓ 0ℓ}} → {{Π : DS.setoid s₁ ⟶ DS.setoid s₂}} → {x₁ x₂ : DS.Carrier s₁} →
+  Holds (equᶠ x₁ x₂) → Holds (equᶠ (Π ⟨$⟩ x₁) (Π ⟨$⟩ x₂))
+
+cong (holds (equᶠ x₁ x₂) _) with DS._≟_ it x₁ x₂
+... | true because ofʸ p = holds _ $ dec-true (DS._≟_ it (it ⟨$⟩ x₁) (it ⟨$⟩ x₂)) (Π-cong it p)
