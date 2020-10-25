@@ -16,66 +16,70 @@ open import SMT as S
     eval ; Holds ; holds ; _≡ᵇ_
   )
 
-env =
-  assignᵛ (var 1) (eval falseᶠ) $
-  ε
-
-open import SAT env
-  using (
-    pos ; neg ; Holdsᶜ ; expand ; from⁺ ; fromᶜ ;
-    resolve-r ; resolve-r⁺ ; resolve-q ; resolve-q⁺ ; mpᶜ ; mp⁺
-  )
-
-open S.Rules env using (Atom ; atom ; mp ; assum ; assum-¬ ; clausi-f ; contra ; final)
-
 -- SAT test #1
+module _ where
+  open import SAT ε using (pos ; neg ; Holdsᶜ ; expand ; resolve-r ; resolve-q ; mp⁺)
 
-sat₁ : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
-  Holdsᶜ (neg (var 0) ∷ pos (var 1) ∷ []) → Holdsᶜ []
+  sat₁ : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
+    Holdsᶜ (neg (var 0) ∷ pos (var 1) ∷ []) → Holdsᶜ []
 
-sat₁ a b r =
-  let a⁺ = expand a in
-  let b⁺ = expand b in
-  let r⁺ = expand r in
-  let x₁ = resolve-r a⁺ r⁺ (var 0) in
-  let x₂ = resolve-q b⁺ x₁ (var 1) in
-  mp⁺ x₂ id
+  sat₁ a b r =
+    let a⁺ = expand a in
+    let b⁺ = expand b in
+    let r⁺ = expand r in
+    let x₁ = resolve-r a⁺ r⁺ (var 0) in
+    let x₂ = resolve-q b⁺ x₁ (var 1) in
+    mp⁺ x₂ id
 
 -- SAT test #2
+module _ where
+  open import SAT ε using (pos ; neg ; Holdsᶜ ; from⁺ ; fromᶜ ; resolve-r⁺ ; resolve-q⁺ ; mp⁺)
 
-instance
-  _ = from⁺
-  _ = fromᶜ
+  instance
+    _ = from⁺
+    _ = fromᶜ
 
-sat₂ : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
-  Holdsᶜ (neg (var 0) ∷ pos (var 1) ∷ []) → Holdsᶜ []
+  sat₂ : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
+    Holdsᶜ (neg (var 0) ∷ pos (var 1) ∷ []) → Holdsᶜ []
 
-sat₂ a b r =
-  let x₁ = resolve-r⁺ a r  (var 0) in
-  let x₂ = resolve-q⁺ b x₁ (var 1) in
-  mp⁺ x₂ id
+  sat₂ a b r =
+    let x₁ = resolve-r⁺ a r  (var 0) in
+    let x₂ = resolve-q⁺ b x₁ (var 1) in
+    mp⁺ x₂ id
 
 -- SMT test #1
+module _ where
+  -- populated by decl_atom
+  env₁ =
+    assignᵛ (var 1) (eval falseᶠ) $
+    ε
 
-smt₁ =
-  λ (x : Bool) →
-  λ (as₁ : Holds trueᶠ) →
-  λ (as₂ : Holds (notᶠ (iffᶠ (appᵇ x) (appᵇ x)))) →
-  let let₁ = falseᶠ in
-  mp (trust falseᶠ) λ pa₁ →
-  mp (trust (notᶠ let₁)) λ pa₂ →
-  -- instead of decl_atom
-  let v₁ = var 1 in
-  let a₁ = atom v₁ let₁ refl in
-  mpᶜ (assum a₁ λ l₃ → clausi-f (contra l₃ pa₂)) λ pb₁ →
-  mpᶜ (assum-¬ a₁ λ l₂ → clausi-f (contra pa₁ l₂)) λ pb₄ →
-  mp⁺ (resolve-r⁺ pb₄ pb₁ v₁) id
+  open import SAT env₁ using (from⁺ ; fromᶜ ; resolve-r⁺ ; mpᶜ ; mp⁺)
+  open S.Rules env₁ using (Atom ; atom ; mp ; assum ; assum-¬ ; clausi-f ; contra ; final)
 
-prop₁ : (x : Bool) → T x ⇔ T x
-prop₁ x = final (iffᶠ (appᵇ x) (appᵇ x)) (smt₁ x (holds trueᶠ refl))
+  instance
+    _ = from⁺
+    _ = fromᶜ
 
-bool₁ : (x : Bool) → T (x ≡ᵇ x)
-bool₁ x = final (boolˣ (iffᶠ (appᵇ x) (appᵇ x))) (smt₁ x (holds trueᶠ refl))
+  smt₁ =
+    λ (x : Bool) →
+    λ (as₁ : Holds trueᶠ) →
+    λ (as₂ : Holds (notᶠ (iffᶠ (appᵇ x) (appᵇ x)))) →
+    let let₁ = falseᶠ in
+    mp (trust falseᶠ) λ pa₁ →
+    mp (trust (notᶠ let₁)) λ pa₂ →
+    -- instead of decl_atom, must match env₁ above
+    let v₁ = var 1 in
+    let a₁ = atom v₁ let₁ refl in
+    mpᶜ (assum a₁ λ l₃ → clausi-f (contra l₃ pa₂)) λ pb₁ →
+    mpᶜ (assum-¬ a₁ λ l₂ → clausi-f (contra pa₁ l₂)) λ pb₄ →
+    mp⁺ (resolve-r⁺ pb₄ pb₁ v₁) id
 
-equ₁ : (x : Bool) → x ≡ x
-equ₁ x = final (equˣ (appᵇ x) (appᵇ x)) (smt₁ x (holds trueᶠ refl))
+  prop₁ : (x : Bool) → T x ⇔ T x
+  prop₁ x = final (iffᶠ (appᵇ x) (appᵇ x)) (smt₁ x (holds trueᶠ refl))
+
+  bool₁ : (x : Bool) → T (x ≡ᵇ x)
+  bool₁ x = final (boolˣ (iffᶠ (appᵇ x) (appᵇ x))) (smt₁ x (holds trueᶠ refl))
+
+  equ₁ : (x : Bool) → x ≡ x
+  equ₁ x = final (equˣ (appᵇ x) (appᵇ x)) (smt₁ x (holds trueᶠ refl))
