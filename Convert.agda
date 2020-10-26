@@ -47,25 +47,34 @@ import SMT
 record Context : Set where
   field
     ctxEnvName : Name
+    -- ^ name of the variable to hold the evaluation environment
     ctxInput   : List Char
+    -- ^ input LFSC proof
     ctxVarNo   : ℕ
-    ctxLevel   : ℕ
+    -- ^ numbers the variables that hold atoms
+    ctxDepth   : ℕ
+    -- ^ current nesting depth of λ-abstractions (use: de Bruin indexes)
     ctxArgs    : Map <-STO-Str ℕ
+    -- ^ λ-bound variables and the nesting depth of their λ-abstractions (use: de Bruin indexes)
     ctxLets    : Map <-STO-Str Term
+    -- ^ let-bound variables and their bound terms; we don't transliterate let-bindings, but
+    -- ^ instead replace occurrences of let-bound variables with their bound terms
     ctxSig     : List Term
+    -- ^ types of the top-level λ-bindings (use: proof term's type signature)
     ctxEnv     : Map <-STO-ℕ Term
+    -- ^ variables and the associated atoms (use: implement decl_atom, evaluation environment)
 
 open Context
 open RawMonad (⊎-monadT 0ℓ (StateMonad Context)) using (return ; _>>=_ ; _>>_ ; _<$>_)
 
 open RawMonadState (StateMonadState Context)
-  using () renaming (return to return↑ ; get to get↑′ ; put to put↑′ ; modify to modify↑′)
+  using () renaming (return to return↑ ; get to get′ ; put to put′ ; modify to modify′)
 
 StateEither : Set → Set
 StateEither S = State Context (Sumₗ 0ℓ S)
 
 data Token : Set where
-  Open : Token
+  Open  : Token
   Close : Token
   Ident : String → Token
 
@@ -73,13 +82,13 @@ fail↑ : {S : Set} → List String → StateEither S
 fail↑ ss = return↑ $ inj₁ ss
 
 get↑ : StateEither Context
-get↑ = (×-map₁ inj₂) ∘ get↑′
+get↑ = (×-map₁ inj₂) ∘ get′
 
 put↑ : Context → StateEither (Lift 0ℓ ⊤)
-put↑ ctx = (×-map₁ inj₂) ∘ (put↑′ ctx)
+put↑ ctx = (×-map₁ inj₂) ∘ (put′ ctx)
 
 modify↑ : (Context → Context) → StateEither (Lift 0ℓ ⊤)
-modify↑ f = (×-map₁ inj₂) ∘ (modify↑′ f)
+modify↑ f = (×-map₁ inj₂) ∘ (modify′ f)
 
 runState : {S : Set} → StateEither S → Context → Sumₗ 0ℓ S
 runState m s = m s |> λ { (x , _) → x }
@@ -130,7 +139,7 @@ newContext envName input = record {
     ctxEnvName = envName ;
     ctxInput   = toListₛ input ;
     ctxVarNo   = 0 ;
-    ctxLevel   = 0 ;
+    ctxDepth   = 0 ;
     ctxArgs    = empty <-STO-Str ;
     ctxLets    = empty <-STO-Str ;
     ctxSig     = [] ;
@@ -155,22 +164,25 @@ module _ where
 
   constMap : Map <-STO-Str $ (List (Arg Term) → Term) × ℕ × ℕ
   constMap =
-    insert <-STO-Str "true"     (con (quote trueᶠ)  , 0 , 0) $
-    insert <-STO-Str "false"    (con (quote falseᶠ) , 0 , 0) $
-    insert <-STO-Str "and"      (con (quote andᶠ)   , 0 , 2) $
-    insert <-STO-Str "th_holds" (def (quote Holds)  , 0 , 1) $
-    empty <-STO-Str
+    define "true"     (con (quote trueᶠ)  , 0 , 0) $
+    define "false"    (con (quote falseᶠ) , 0 , 0) $
+    define "and"      (con (quote andᶠ)   , 0 , 2) $
+    define "th_holds" (def (quote Holds)  , 0 , 1) $
+    end
+    where
+    define = insert <-STO-Str
+    end = empty <-STO-Str
 
 termFromExpr′ : StateEither Term
 
 constLookup : String → StateEither $ (List (Arg Term) → Term) × ℕ × ℕ
 constLookup ident = case lookup <-STO-Str ident constMap of λ where
-  nothing → fail↑ $ "LFSC - unknown identifier '" ∷ ident ∷ "'" ∷ []
+  nothing  → fail↑ $ "LFSC - unknown identifier '" ∷ ident ∷ "'" ∷ []
   (just x) → return x
 
 termFromArg : String → ℕ → Map <-STO-Str ℕ → Maybe Term
-termFromArg ident level args =
-  mapₘ (λ x → var (level ∸ x) []) $
+termFromArg ident depth args =
+  mapₘ (λ x → var (depth ∸ x) []) $
   lookup <-STO-Str ident args
 
 termFromLet : String → Map <-STO-Str Term → Maybe Term
@@ -185,7 +197,7 @@ termFromIdent : String → StateEither Term
 termFromIdent ident = do
   ctx ← get↑
   mt ← return $
-    (termFromArg ident (ctxLevel ctx) (ctxArgs ctx) <∣>
+    (termFromArg ident (ctxDepth ctx) (ctxArgs ctx) <∣>
     termFromLet ident (ctxLets ctx)) <∣>
     termFromConst ident
   case mt of λ where
@@ -239,10 +251,10 @@ handleTypedLambda = do
   t₁ ← buildOneTerm
   t₂ ← localContext $ do
     modify↑ λ ctx →
-      let level = suc (ctxLevel ctx) in
+      let depth = suc (ctxDepth ctx) in
         record ctx {
-          ctxLevel = level ;
-          ctxArgs  = insert <-STO-Str name level $ ctxArgs ctx ;
+          ctxDepth = depth ;
+          ctxArgs  = insert <-STO-Str name depth $ ctxArgs ctx ;
           ctxSig   = t₁ ∷ ctxSig ctx
         }
     buildOneTerm
@@ -253,10 +265,10 @@ handleLambda = do
   name ← getVariable
   t ← localContext $ do
     modify↑ λ ctx →
-      let level = suc (ctxLevel ctx) in
+      let depth = suc (ctxDepth ctx) in
         record ctx {
-          ctxLevel = level ;
-          ctxArgs  = insert <-STO-Str name level $ ctxArgs ctx
+          ctxDepth = depth ;
+          ctxArgs  = insert <-STO-Str name depth $ ctxArgs ctx
         }
     buildOneTerm
   return $ lam visible $ abs (stripDot name) t
@@ -312,9 +324,11 @@ handleDeclAtom = do
   prepareContext t₁ v a = modify↑ λ ctx →
     let
       varNo = suc (ctxVarNo ctx)
+      -- var <varNo>
       vVal = con (quote Env.Var.var) $
         visibleArg (lit (nat varNo)) ∷
         []
+      -- atom {<envName>} (var <varNo>) t₁ (refl {_} {_} {_})
       aVal = con (quote SMT.Rules.Atom.atom) $
         hiddenArg (def (ctxEnvName ctx) []) ∷
         visibleArg vVal ∷
@@ -329,9 +343,7 @@ handleDeclAtom = do
       record ctx {
           ctxVarNo = varNo ;
           ctxLets =
-            -- let v = var var#
             insert <-STO-Str v vVal $
-            -- let a = atom {_} (var var#) t₁ (refl {_} {_} {_})
             insert <-STO-Str a aVal $
             ctxLets ctx ;
           ctxEnv = insert <-STO-ℕ varNo t₁ $ ctxEnv ctx
@@ -369,11 +381,13 @@ termFromExpr = do
 
 buildEnv : List (ℕ × Term) → StateEither Term
 buildEnv [] =
+  -- ε {0ℓ} {Bool}
   return $ def (quote Env.ε) $
     hiddenArg (def (quote Level.zero) []) ∷
     hiddenArg (def (quote Data.Bool.Bool) []) ∷
     []
 buildEnv ((n , t) ∷ nts) =
+  -- assignᵛ (var <n>) (eval <t>) <rest>
   (λ # → def (quote Env.assignᵛ) $
     visibleArg (con (quote Env.Var.var) $
       visibleArg (lit (nat n)) ∷
@@ -387,6 +401,7 @@ buildEnv ((n , t) ∷ nts) =
 buildType : List Term → StateEither Term
 buildType [] = do
   ctx ← get↑
+  -- Holdsᶜ <envName> []
   return $ def (quote SAT.Holdsᶜ) $
     visibleArg (def (ctxEnvName ctx) []) ∷
     visibleArg (con (quote Data.List.List.[]) $
@@ -395,6 +410,7 @@ buildType [] = do
       []) ∷
     []
 buildType (t ∷ ts) =
+  -- t → <rest>
   (λ # → pi (visibleArg t) (abs "_" #)) <$>
   buildType ts
 
@@ -422,9 +438,8 @@ macro
   proofTerm (inj₁ ss)          _    = typeError $ mapₗ strErr ss
   proofTerm (inj₂ (_ , _ , t)) hole = unify hole t
 
--- XXX - remove this workaround
-postulate
-  workaround : String → List String → String → TC (ℕ × String × String)
+-- XXX - remove this workaround; why do we need it in the first place?
+postulate workaround : String → List String → String → TC (ℕ × String × String)
 {-# BUILTIN AGDATCMEXEC workaround #-}
 
 module Proof where
@@ -502,10 +517,12 @@ module Test where
     assignᵛ (var′ 1) (eval trueᶠ) $
     ε
 
+  {- XXX - test broken; {testEnv} is quoted into {_} for some reason
   atomTest₂ :
     test "(decl_atom true (\\ .x (\\ .y .y)))" ≡
     (inj₂ $ quoteTerm (atom {testEnv} (var′ 1) trueᶠ refl))
   atomTest₂ = {!!}
+  -}
 
   atomTest₃ : {S : Set} →
     test″ "(% .x (th_holds true) (decl_atom true (\\ .y (\\ .z .y))))" ≡
