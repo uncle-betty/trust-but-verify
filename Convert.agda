@@ -310,23 +310,23 @@ handleDeclAtom = do
 
   prepareContext : Term → String → String → StateEither (Lift 0ℓ ⊤)
   prepareContext t₁ v a = modify↑ λ ctx →
-      let
-        varNo = suc (ctxVarNo ctx)
-        vVal = con (quote Env.Var.var) $
-          visibleArg (lit (nat varNo)) ∷
-          []
-        aVal = con (quote SMT.Rules.Atom.atom) $
-          hiddenArg (def (ctxEnvName ctx) []) ∷
-          visibleArg vVal ∷
-          visibleArg t₁ ∷
-          visibleArg (con (quote Relation.Binary.PropositionalEquality._≡_.refl) $
-            hiddenArg unknown ∷
-            hiddenArg unknown ∷
-            hiddenArg unknown ∷
-            []) ∷
-          []
-      in
-        record ctx {
+    let
+      varNo = suc (ctxVarNo ctx)
+      vVal = con (quote Env.Var.var) $
+        visibleArg (lit (nat varNo)) ∷
+        []
+      aVal = con (quote SMT.Rules.Atom.atom) $
+        hiddenArg (def (ctxEnvName ctx) []) ∷
+        visibleArg vVal ∷
+        visibleArg t₁ ∷
+        visibleArg (con (quote Relation.Binary.PropositionalEquality._≡_.refl) $
+          hiddenArg unknown ∷
+          hiddenArg unknown ∷
+          hiddenArg unknown ∷
+          []) ∷
+        []
+    in
+      record ctx {
           ctxVarNo = varNo ;
           ctxLets =
             -- let v = var var#
