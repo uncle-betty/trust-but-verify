@@ -141,6 +141,7 @@ prop (decᶠ {S} _) = S
 prop (boolˣ f) = T (eval f)
 prop (equˣ f₁ f₂) = eval f₁ ≡ eval f₂
 
+-- XXX - wait... did I reinvent Dec here, with "eval f" reflecting "prop f"?
 prove : ∀ f → eval f ≡ true → prop f
 prove-¬ : ∀ f → eval f ≡ false → ¬ prop f
 
