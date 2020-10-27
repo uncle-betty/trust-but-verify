@@ -18,10 +18,10 @@ import SAT
 module SAT₁ where
   open SAT ε
 
-  sat : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
+  proof : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
     Holdsᶜ (neg (var 0) ∷ pos (var 1) ∷ []) → Holdsᶜ []
 
-  sat a b r =
+  proof a b r =
     let a⁺ = expand a in
     let b⁺ = expand b in
     let r⁺ = expand r in
@@ -36,10 +36,10 @@ module SAT₂ where
     _ = from⁺
     _ = fromᶜ
 
-  sat : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
+  proof : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
     Holdsᶜ (neg (var 0) ∷ pos (var 1) ∷ []) → Holdsᶜ []
 
-  sat a b r =
+  proof a b r =
     let x₁ = resolve-r⁺ a r  (var 0) in
     let x₂ = resolve-q⁺ b x₁ (var 1) in
     mp⁺ x₂ id
@@ -59,14 +59,14 @@ module SMT₁ where
     assignᵛ (var 1) (eval falseᶠ) $
     ε
 
-  smt =
+  proof =
     λ (x : Bool) →
     λ (as₁ : Holds trueᶠ) →
     λ (as₂ : Holds (notᶠ (iffᶠ (appᵇ x) (appᵇ x)))) →
     let let₁ = falseᶠ in
     mp (trust falseᶠ) λ pa₁ →
     mp (trust (notᶠ let₁)) λ pa₂ →
-    -- instead of decl_atom, must match env₁ above
+    -- instead of decl_atom, must match env above
     let v₁ = var 1 in
     let a₁ = atom v₁ let₁ reflₚ in
     mpᶜ (assum a₁ λ l₃ → clausi-f (contra l₃ pa₂)) λ pb₁ →
@@ -74,15 +74,16 @@ module SMT₁ where
     mp⁺ (resolve-r⁺ pb₄ pb₁ v₁) id
 
   proof-prop : (x : Bool) → T x ⇔ T x
-  proof-prop x = final (iffᶠ (appᵇ x) (appᵇ x)) (smt x (holds trueᶠ reflₚ))
+  proof-prop x = final (iffᶠ (appᵇ x) (appᵇ x)) (proof x (holds trueᶠ reflₚ))
 
   proof-bool : (x : Bool) → T (x ≡ᵇ x)
-  proof-bool x = final (boolˣ (iffᶠ (appᵇ x) (appᵇ x))) (smt x (holds trueᶠ reflₚ))
+  proof-bool x = final (boolˣ (iffᶠ (appᵇ x) (appᵇ x))) (proof x (holds trueᶠ reflₚ))
 
   proof-equ : (x : Bool) → x ≡ x
-  proof-equ x = final (equˣ (appᵇ x) (appᵇ x)) (smt x (holds trueᶠ reflₚ))
+  proof-equ x = final (equˣ (appᵇ x) (appᵇ x)) (proof x (holds trueᶠ reflₚ))
 
 module SMT₂ where
+  -- the LFSC proof output by CVC4; comments supported, but removed for brevity
   input : String
   input = "
     (check
@@ -107,11 +108,17 @@ module SMT₂ where
     _ = from⁺
     _ = fromᶜ
 
+  -- convert the LFSC proof into an environment, a type, and a term of this type.
   envTypeTerm = convertProof (quote env) input
+
+  -- unquote the environment
   env = proofEnv envTypeTerm
 
+  -- unquote the type
   proof : proofType envTypeTerm
+  -- unquote the term
   proof = proofTerm envTypeTerm
 
+  -- now we can do the same things we did in SMT₁
   proof-prop : (x : Bool) → T x ⇔ T x
   proof-prop x = final (iffᶠ (appᵇ x) (appᵇ x)) (proof x (holds trueᶠ reflₚ))
