@@ -18,6 +18,8 @@ open import Function.Equality using (Π)
 open import Function.Equivalence using (_⇔_ ; equivalence)
 
 open import Relation.Binary.Bundles using (DecSetoid)
+open import Relation.Binary.Core using (Rel)
+open import Relation.Binary.Definitions using (Decidable)
 
 open import Relation.Binary.PropositionalEquality
   using (_≡_ ; _≢_ ; refl ; subst ; sym ; inspect ; [_])
@@ -69,6 +71,9 @@ data Formula where
 
   -- XXX - cover ite, let, flet
 
+  -- LFSC: bvult, ... (binary relations over terms)
+  decᶠ   : {T : Set} → {R : Rel T 0ℓ} → (d : Decidable R) → (t₁ t₂ : T) → Formula
+
   -- extension - boolean subformulas
   boolˣ  : Formula → Formula
   -- extension - boolean equalities
@@ -116,6 +121,7 @@ eval (equᶠ {{s}} x₁ x₂) = does (DecSetoid._≟_ s x₁ x₂)
 
 eval (appᵇ b) = b
 
+eval (decᶠ d t₁ t₂) = does (d t₁ t₂)
 eval (boolˣ f) = eval f
 eval (equˣ f₁ f₂) = eval f₁ ≡ᵇ eval f₂
 
@@ -134,6 +140,7 @@ prop (equᶠ {{s}} x₁ x₂) = DecSetoid._≈_ s x₁ x₂
 
 prop (appᵇ b) = T b
 
+prop (decᶠ {_} {R} _ t₁ t₂) = R t₁ t₂
 prop (boolˣ f) = T (eval f)
 prop (equˣ f₁ f₂) = eval f₁ ≡ eval f₂
 
@@ -200,6 +207,9 @@ prove (equᶠ {{s}} x₁ x₂) with DecSetoid._≟_ s x₁ x₂
 ... | false because ofⁿ _ = λ ()
 
 prove (appᵇ b) refl = tt
+
+prove (decᶠ d t₁ t₂) _ with (d t₁ t₂)
+... | true because ofʸ p = p
 
 prove (boolˣ f) p = subst T (sym p) tt
 prove (equˣ f₁ f₂) p = ≡ᵇ≡t⇒≡ (eval f₁) (eval f₂) p
@@ -295,6 +305,9 @@ prove-¬ (equᶠ {{s}} x₁ x₂) with DecSetoid._≟_ s x₁ x₂
 
 prove-¬ (appᵇ b) refl = id
 
+prove-¬ (decᶠ d t₁ t₂) _ with (d t₁ t₂)
+... | false because ofⁿ p = p
+
 prove-¬ (boolˣ f) p r = subst T p r
 prove-¬ (equˣ f₁ f₂) p = ≡ᵇ≡f⇒≢ (eval f₁) (eval f₂) p
 
@@ -313,6 +326,7 @@ strip (equᶠ {{s}} x₁ x₂) = equᶠ {{s}} x₁ x₂
 
 strip (appᵇ b) = appᵇ b
 
+strip (decᶠ d t₁ t₂) = decᶠ d t₁ t₂
 strip (boolˣ f) = strip f
 strip (equˣ f₁ f₂) = iffᶠ (strip f₁) (strip f₂)
 
@@ -332,6 +346,7 @@ strip-sound (equᶠ {{s}} x₁ x₂) = refl
 
 strip-sound (appᵇ b) = refl
 
+strip-sound (decᶠ d t₁ t₂) = refl
 strip-sound (boolˣ f) = strip-sound f
 strip-sound (equˣ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
 
