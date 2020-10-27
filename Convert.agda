@@ -10,7 +10,7 @@ open import Data.Char using (Char) renaming (_≟_ to _≟-char_)
 open import Data.Empty using (⊥)
 
 open import Data.List
-  using (List ; [] ; _∷_ ; [_] ; reverse ; dropWhile ; span) renaming (map to mapₗ)
+  using (List ; [] ; _∷_ ; [_] ; reverse ; drop ; dropWhile ; span) renaming (map to mapₗ)
 
 open import Data.Maybe using (Maybe ; just ; nothing ; _<∣>_) renaming (map to mapₘ)
 open import Data.Nat using (ℕ ; zero; suc ; _∸_)
@@ -43,6 +43,7 @@ open import Relation.Nullary.Negation using (¬?)
 import Env
 import SAT
 import SMT
+import Base
 
 record Context : Set where
   field
@@ -134,6 +135,14 @@ extractToken = do
 nextToken : StateEither Token
 nextToken = skipToToken >> extractToken
 
+expectOpen = nextToken >>= λ where
+  Open  → return tt
+  token → fail↑ $ "LFSC - expected '(', found '" ∷ showToken token ∷ "'" ∷ []
+
+expectClose = nextToken >>= λ where
+  Close → return tt
+  token → fail↑ $ "LFSC - expected ')', found '" ∷ showToken token ∷ "'" ∷ []
+
 newContext : Name → String → Context
 newContext envName input = record {
     ctxEnvName = envName ;
@@ -158,22 +167,78 @@ localContext toWrap = do
     }
   return result
 
+visibleArg : Term → Arg Term
+visibleArg = arg (arg-info visible relevant)
+
+hiddenArg : Term → Arg Term
+hiddenArg = arg (arg-info hidden relevant)
+
+unknownArg : Arg Term
+unknownArg = arg (arg-info hidden relevant) unknown
+
 module _ where
   open SAT
   open SMT
+  open SMT.Rules
+  open Base
 
-  constMap : Map <-STO-Str $ (List (Arg Term) → Term) × ℕ × ℕ
+  pass₁ : ∀ {ℓ} → {S : Set ℓ} → S → S
+  pass₁ x = x
+
+  pass₂ : ∀ {ℓ₁ ℓ₂} → {S₁ : Set ℓ₁} → {S₂ : Set ℓ₂} → S₁ → S₂ → S₂
+  pass₂ _ x = x
+
+  Directions = (List (Arg Term) → Term) × ℕ × ℕ
+
+  constMap : Map <-STO-Str Directions
   constMap =
-    define "true"     (con (quote trueᶠ)  , 0 , 0) $
-    define "false"    (con (quote falseᶠ) , 0 , 0) $
-    define "and"      (con (quote andᶠ)   , 0 , 2) $
-    define "th_holds" (def (quote Holds)  , 0 , 1) $
+    -- pass the last argument through
+    noEnv "check" (def (quote pass₁) , 0 , 1) $
+    noEnv ":"     (def (quote pass₂) , 0 , 2) $
+    noEnv "term"  (def (quote pass₁) , 0 , 1) $
+
+    -- built-ins
+    noEnv "Bool" (def (quote Data.Bool.Bool)    , 0 , 0) $
+    noEnv "cln"  (con (quote Data.List.List.[]) , 0 , 0) $
+
+    -- no leading env argument, i.e., not in SAT or SMT.Rules
+    noEnv "true"     (con (quote trueᶠ)  , 0 , 0) $
+    noEnv "false"    (con (quote falseᶠ) , 0 , 0) $
+    noEnv "and"      (con (quote andᶠ)   , 0 , 2) $
+    noEnv "not"      (con (quote notᶠ)   , 0 , 1) $
+    noEnv "iff"      (con (quote iffᶠ)   , 0 , 2) $
+    noEnv "p_app"    (con (quote appᵇ)   , 0 , 1) $
+    noEnv "th_holds" (def (quote Holds)  , 0 , 1) $
+    noEnv "trust_f"  (def (quote trust)  , 0 , 1) $
+
+    -- with leading (visible!) env argument, i.e., in SAT or SMT.Rules
+    withEnv "holds"           (def (quote Holdsᶜ)     , 0 , 1) $
+    withEnv "satlem"          (def (quote mpᶜ)        , 2 , 2) $
+    withEnv "satlem_simplify" (def (quote mp⁺)        , 3 , 2) $
+    withEnv "R"               (def (quote resolve-r⁺) , 2 , 3) $
+    withEnv "th_let_pf"       (def (quote mp)         , 1 , 2) $
+    withEnv "ast"             (def (quote assum)      , 3 , 2) $
+    withEnv "asf"             (def (quote assum-¬)    , 3 , 2) $
+    withEnv "clausify_false"  (def (quote clausi-f)   , 0 , 1) $
+    withEnv "contra"          (def (quote contra)     , 1 , 2) $
+
     end
+
     where
-    define = insert <-STO-Str
+    withEnv : String → Directions → Map <-STO-Str Directions → Map <-STO-Str Directions
+    withEnv = insert <-STO-Str
+
+    noEnv : String → Directions → Map <-STO-Str Directions → Map <-STO-Str Directions
+    noEnv s (f , n₁ , n₂) m = insert <-STO-Str s (f ∘ drop 1 , n₁ , n₂) m
+
     end = empty <-STO-Str
 
 termFromExpr′ : StateEither Term
+
+visibleEnvArg : StateEither (Arg Term)
+visibleEnvArg = do
+  ctx ← get↑
+  return $ visibleArg (def (ctxEnvName ctx) [])
 
 constLookup : String → StateEither $ (List (Arg Term) → Term) × ℕ × ℕ
 constLookup ident = case lookup <-STO-Str ident constMap of λ where
@@ -188,18 +253,19 @@ termFromArg ident depth args =
 termFromLet : String → Map <-STO-Str Term → Maybe Term
 termFromLet ident lets = lookup <-STO-Str ident lets
 
-termFromConst : String → Maybe Term
-termFromConst ident = case lookup <-STO-Str ident constMap of λ where
-  (just (cons , zero , zero)) → just (cons [])
+termFromConst : String → Arg Term → Maybe Term
+termFromConst ident envArg = case lookup <-STO-Str ident constMap of λ where
+  (just (cons , zero , zero)) → just (cons [ envArg ])
   _                           → nothing
 
 termFromIdent : String → StateEither Term
 termFromIdent ident = do
   ctx ← get↑
+  envArg ← visibleEnvArg
   mt ← return $
     (termFromArg ident (ctxDepth ctx) (ctxArgs ctx) <∣>
     termFromLet ident (ctxLets ctx)) <∣>
-    termFromConst ident
+    termFromConst ident envArg
   case mt of λ where
     nothing  → fail↑ $ "LFSC - unknown identifier '" ∷ ident ∷ "'" ∷ []
     (just t) → return t
@@ -218,7 +284,7 @@ skipImplicits (suc n) = do
     where token → fail↑ $ "LFSC - expected '_', found '" ∷ showToken token ∷ "'" ∷ []
   skipImplicits n
 
--- XXX - convince the termination checker
+-- XXX - convince the termination checker that ctxInput keeps getting shorter
 {-# TERMINATING #-}
 buildTerms : List Term → ℕ → StateEither (List Term)
 buildTerms ts zero = return $ reverse ts
@@ -290,12 +356,6 @@ handleLet = do
     buildOneTerm
   return t₂
 
-visibleArg : Term → Arg Term
-visibleArg = arg (arg-info visible relevant)
-
-hiddenArg : Term → Arg Term
-hiddenArg = arg (arg-info hidden relevant)
-
 handleDeclAtom : StateEither Term
 handleDeclAtom = do
   t₁ ← buildOneTerm
@@ -308,14 +368,6 @@ handleDeclAtom = do
   return t₂
 
   where
-  expectOpen = nextToken >>= λ where
-    Open  → return tt
-    token → fail↑ $ "LFSC - expected '(', found '" ∷ showToken token ∷ "'" ∷ []
-
-  expectClose = nextToken >>= λ where
-    Close → return tt
-    token → fail↑ $ "LFSC - expected ')', found '" ∷ showToken token ∷ "'" ∷ []
-
   expectLambda = nextToken >>= λ where
     (Ident "\\") → return tt
     token        → fail↑ $ "LFSC - expected '\\', found '" ∷ showToken token ∷ "'" ∷ []
@@ -353,8 +405,9 @@ handleAppl : String → StateEither Term
 handleAppl ident = do
   (cons , nImpls , nArgs) ← constLookup ident
   skipImplicits nImpls
+  envArg ← visibleEnvArg
   args ← buildTerms [] nArgs
-  return $ cons $ mapₗ (arg $ arg-info visible relevant) args
+  return $ cons $ envArg ∷ mapₗ (arg $ arg-info visible relevant) args
 
 handleBody : StateEither Term
 handleBody = do
@@ -369,14 +422,12 @@ handleBody = do
 
 termFromExpr′ = do
   term ← handleBody
-  Close ← nextToken
-    where token → fail↑ $ "LFSC - expected ')', found '" ∷ showToken token ∷ "'" ∷ []
+  expectClose
   return term
 
 termFromExpr : StateEither Term
 termFromExpr = do
-  Open ← nextToken
-    where token → fail↑ $ "LFSC - expected '(', found '" ∷ showToken token ∷ "'" ∷ []
+  expectOpen
   termFromExpr′
 
 buildEnv : List (ℕ × Term) → StateEither Term
@@ -414,8 +465,8 @@ buildType (t ∷ ts) =
   (λ # → pi (visibleArg t) (abs "_" #)) <$>
   buildType ts
 
-convExpr : StateEither (Term × Term × Term)
-convExpr = do
+buildProof : StateEither (Term × Term × Term)
+buildProof = do
   term ← termFromExpr
   ctx ← get↑
   type ← buildType $ reverse $ ctxSig ctx
@@ -423,7 +474,7 @@ convExpr = do
   return $ env , type , term
 
 convertProof : Name → String → Sumₗ 0ℓ (Term × Term × Term)
-convertProof envName input = runState convExpr $ newContext envName input
+convertProof envName input = runState buildProof $ newContext envName input
 
 macro
   proofEnv : List String ⊎ (Term × Term × Term) → Term → TC ⊤
@@ -443,14 +494,37 @@ postulate workaround : String → List String → String → TC (ℕ × String �
 {-# BUILTIN AGDATCMEXEC workaround #-}
 
 module Proof where
-  open Env using (Env)
+  input = "
+    (check
+    (% x (term Bool)
+    (% A1 (th_holds true)
+    (% A0 (th_holds (not (iff (p_app x) (p_app x) )))
+    (: (holds cln)
+    (@ let1 false
+    (th_let_pf _ (trust_f false) (\\ .PA248
+    (th_let_pf _ (trust_f (not let1)) (\\ .PA267
+    (decl_atom let1 (\\ .v1 (\\ .a1
+    (satlem _ _ (ast _ _ _ .a1 (\\ .l3 (clausify_false (contra _ .l3 .PA267)))) (\\ .pb1
+    (satlem _ _ (asf _ _ _ .a1 (\\ .l2 (clausify_false (contra _ .PA248 .l2)))) (\\ .pb4
+    (satlem_simplify _ _ _ (R _ _ .pb4 .pb1 .v1) (\\ empty empty)))))))))))))))))))"
+
+  open Env
 
   env : Env
-  ett = convertProof (quote env) "(% .x (th_holds true) (decl_atom true (\\ .y (\\ .z .y))))"
+
+  open SAT env
+  open SMT
+  open SMT.Rules env
+
+  instance
+    _ = from⁺
+    _ = fromᶜ
+
+  ett = convertProof (quote env) input
   env = proofEnv ett
 
   proof : proofType ett
-  proof = {!!}
+  proof = proofTerm ett
 
 module Test where
   open Env renaming (var to var′)
@@ -531,51 +605,3 @@ module Test where
       quoteTerm (Holds trueᶠ → Holdsᶜ testEnv []) ,
       quoteTerm (λ (x : S) → var′ 1)))
   atomTest₃ = refl
-
-{-
-testInput′ = "
-(check
- ;; Declarations
-(% x (term Bool)
-(% A1 (th_holds true)
-(% A0 (th_holds (not (iff (p_app x) (p_app x) )))
-(: (holds cln)
-
- ;; Printing deferred declarations
-
-
-;; BV const letification
-
-
-
- ;; Printing the global let map
-(@ let1 false
-
- ;; Printing aliasing declarations
-
-
- ;; Rewrites for Lemmas
-
- ;; In the preprocessor we trust
-(th_let_pf _ (trust_f false) (\\ .PA248
-(th_let_pf _ (trust_f (not let1)) (\\ .PA267
-
-;; Printing mapping from preprocessed assertions into atoms
-(decl_atom let1 (\\ .v1 (\\ .a1
-(satlem _ _ (ast _ _ _ .a1 (\\ .l3 (clausify_false (contra _ .l3 .PA267)))) (\\ .pb1
-(satlem _ _ (asf _ _ _ .a1 (\\ .l2 (clausify_false (contra _ .PA248 .l2)))) (\\ .pb4
- ;; Theory Lemmas
-
-;; BB atom mapping
-
-
-;; Bit-blasting definitional clauses
-
-
- ;; Bit-blasting learned clauses
-
-;; Printing final unsat proof
-(satlem_simplify _ _ _ (R _ _ .pb4 .pb1 .v1) (\\ empty empty)))))))))))))))))))
-;;
-"
--}
