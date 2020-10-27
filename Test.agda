@@ -3,27 +3,25 @@ module Test where
 open import Data.Bool using (Bool ; false ; T)
 open import Data.List using ([] ; _∷_)
 open import Data.Product using (_×_)
+open import Data.String using (String)
 open import Function using (id ; _$_)
 open import Function.Equivalence using (_⇔_)
-open import Relation.Binary.PropositionalEquality using (_≡_ ; refl)
+open import Relation.Binary.PropositionalEquality using (_≡_) renaming (refl to reflₚ)
 
-open import Base using (trust)
-open import Env using (var ; ε ; assignᵛ)
+open import Env
+open import SMT
+open import Base
+open import Convert
 
-open import SMT as S
-  using (
-    trueᶠ ; falseᶠ ; notᶠ ; iffᶠ ; appᵇ ; boolˣ ; equˣ ;
-    eval ; Holds ; holds ; _≡ᵇ_
-  )
+import SAT
 
--- SAT test #1
-module _ where
-  open import SAT ε using (pos ; neg ; Holdsᶜ ; expand ; resolve-r ; resolve-q ; mp⁺)
+module SAT₁ where
+  open SAT ε
 
-  sat₁ : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
+  sat : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
     Holdsᶜ (neg (var 0) ∷ pos (var 1) ∷ []) → Holdsᶜ []
 
-  sat₁ a b r =
+  sat a b r =
     let a⁺ = expand a in
     let b⁺ = expand b in
     let r⁺ = expand r in
@@ -31,37 +29,37 @@ module _ where
     let x₂ = resolve-q b⁺ x₁ (var 1) in
     mp⁺ x₂ id
 
--- SAT test #2
-module _ where
-  open import SAT ε using (pos ; neg ; Holdsᶜ ; from⁺ ; fromᶜ ; resolve-r⁺ ; resolve-q⁺ ; mp⁺)
+module SAT₂ where
+  open SAT ε
 
   instance
     _ = from⁺
     _ = fromᶜ
 
-  sat₂ : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
+  sat : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
     Holdsᶜ (neg (var 0) ∷ pos (var 1) ∷ []) → Holdsᶜ []
 
-  sat₂ a b r =
+  sat a b r =
     let x₁ = resolve-r⁺ a r  (var 0) in
     let x₂ = resolve-q⁺ b x₁ (var 1) in
     mp⁺ x₂ id
 
--- SMT test #1
-module _ where
+module SMT₁ where
   -- populated by decl_atom
-  env₁ =
-    assignᵛ (var 1) (eval falseᶠ) $
-    ε
+  env : Env
 
-  open import SAT env₁ using (from⁺ ; fromᶜ ; resolve-r⁺ ; mpᶜ ; mp⁺)
-  open S.Rules env₁ using (Atom ; atom ; mp ; assum ; assum-¬ ; clausi-f ; contra ; final)
+  open SAT env
+  open SMT.Rules env
 
   instance
     _ = from⁺
     _ = fromᶜ
 
-  smt₁ =
+  env =
+    assignᵛ (var 1) (eval falseᶠ) $
+    ε
+
+  smt =
     λ (x : Bool) →
     λ (as₁ : Holds trueᶠ) →
     λ (as₂ : Holds (notᶠ (iffᶠ (appᵇ x) (appᵇ x)))) →
@@ -70,16 +68,50 @@ module _ where
     mp (trust (notᶠ let₁)) λ pa₂ →
     -- instead of decl_atom, must match env₁ above
     let v₁ = var 1 in
-    let a₁ = atom v₁ let₁ refl in
+    let a₁ = atom v₁ let₁ reflₚ in
     mpᶜ (assum a₁ λ l₃ → clausi-f (contra l₃ pa₂)) λ pb₁ →
     mpᶜ (assum-¬ a₁ λ l₂ → clausi-f (contra pa₁ l₂)) λ pb₄ →
     mp⁺ (resolve-r⁺ pb₄ pb₁ v₁) id
 
-  prop₁ : (x : Bool) → T x ⇔ T x
-  prop₁ x = final (iffᶠ (appᵇ x) (appᵇ x)) (smt₁ x (holds trueᶠ refl))
+  proof-prop : (x : Bool) → T x ⇔ T x
+  proof-prop x = final (iffᶠ (appᵇ x) (appᵇ x)) (smt x (holds trueᶠ reflₚ))
 
-  bool₁ : (x : Bool) → T (x ≡ᵇ x)
-  bool₁ x = final (boolˣ (iffᶠ (appᵇ x) (appᵇ x))) (smt₁ x (holds trueᶠ refl))
+  proof-bool : (x : Bool) → T (x ≡ᵇ x)
+  proof-bool x = final (boolˣ (iffᶠ (appᵇ x) (appᵇ x))) (smt x (holds trueᶠ reflₚ))
 
-  equ₁ : (x : Bool) → x ≡ x
-  equ₁ x = final (equˣ (appᵇ x) (appᵇ x)) (smt₁ x (holds trueᶠ refl))
+  proof-equ : (x : Bool) → x ≡ x
+  proof-equ x = final (equˣ (appᵇ x) (appᵇ x)) (smt x (holds trueᶠ reflₚ))
+
+module SMT₂ where
+  input : String
+  input = "
+    (check
+    (% x (term Bool)
+    (% A1 (th_holds true)
+    (% A0 (th_holds (not (iff (p_app x) (p_app x) )))
+    (: (holds cln)
+    (@ let1 false
+    (th_let_pf _ (trust_f false) (\\ .PA248
+    (th_let_pf _ (trust_f (not let1)) (\\ .PA267
+    (decl_atom let1 (\\ .v1 (\\ .a1
+    (satlem _ _ (ast _ _ _ .a1 (\\ .l3 (clausify_false (contra _ .l3 .PA267)))) (\\ .pb1
+    (satlem _ _ (asf _ _ _ .a1 (\\ .l2 (clausify_false (contra _ .PA248 .l2)))) (\\ .pb4
+    (satlem_simplify _ _ _ (R _ _ .pb4 .pb1 .v1) (\\ empty empty)))))))))))))))))))"
+
+  env : Env
+
+  open SAT env
+  open SMT.Rules env
+
+  instance
+    _ = from⁺
+    _ = fromᶜ
+
+  envTypeTerm = convertProof (quote env) input
+  env = proofEnv envTypeTerm
+
+  proof : proofType envTypeTerm
+  proof = proofTerm envTypeTerm
+
+  proof-prop : (x : Bool) → T x ⇔ T x
+  proof-prop x = final (iffᶠ (appᵇ x) (appᵇ x)) (proof x (holds trueᶠ reflₚ))

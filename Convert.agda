@@ -489,43 +489,6 @@ macro
   proofTerm (inj₁ ss)          _    = typeError $ mapₗ strErr ss
   proofTerm (inj₂ (_ , _ , t)) hole = unify hole t
 
--- XXX - remove this workaround; why do we need it in the first place?
-postulate workaround : String → List String → String → TC (ℕ × String × String)
-{-# BUILTIN AGDATCMEXEC workaround #-}
-
-module Proof where
-  input = "
-    (check
-    (% x (term Bool)
-    (% A1 (th_holds true)
-    (% A0 (th_holds (not (iff (p_app x) (p_app x) )))
-    (: (holds cln)
-    (@ let1 false
-    (th_let_pf _ (trust_f false) (\\ .PA248
-    (th_let_pf _ (trust_f (not let1)) (\\ .PA267
-    (decl_atom let1 (\\ .v1 (\\ .a1
-    (satlem _ _ (ast _ _ _ .a1 (\\ .l3 (clausify_false (contra _ .l3 .PA267)))) (\\ .pb1
-    (satlem _ _ (asf _ _ _ .a1 (\\ .l2 (clausify_false (contra _ .PA248 .l2)))) (\\ .pb4
-    (satlem_simplify _ _ _ (R _ _ .pb4 .pb1 .v1) (\\ empty empty)))))))))))))))))))"
-
-  open Env
-
-  env : Env
-
-  open SAT env
-  open SMT
-  open SMT.Rules env
-
-  instance
-    _ = from⁺
-    _ = fromᶜ
-
-  ett = convertProof (quote env) input
-  env = proofEnv ett
-
-  proof : proofType ett
-  proof = proofTerm ett
-
 module Test where
   open Env renaming (var to var′)
   open SAT
