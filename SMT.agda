@@ -67,10 +67,10 @@ data Formula where
   -- LFSC: p_app
   appᵇ   : Bool → Formula
 
-  -- XXX - cover ite, let, flet
+  -- XXX - cover ite, let, flet?
 
   -- LFSC: bvult, ... (binary relations over terms)
-  decᶠ   : {S : Set} → Dec S → Formula
+  decˣ   : {S : Set} → Dec S → Formula
   -- extension - boolean subformulas
   boolˣ  : Formula → Formula
   -- extension - boolean equalities
@@ -118,7 +118,7 @@ eval (equᶠ {{s}} x₁ x₂) = does (DecSetoid._≟_ s x₁ x₂)
 
 eval (appᵇ b) = b
 
-eval (decᶠ d) = does d
+eval (decˣ d) = does d
 eval (boolˣ f) = eval f
 eval (equˣ f₁ f₂) = eval f₁ ≡ᵇ eval f₂
 
@@ -137,7 +137,7 @@ prop (equᶠ {{s}} x₁ x₂) = DecSetoid._≈_ s x₁ x₂
 
 prop (appᵇ b) = T b
 
-prop (decᶠ {S} _) = S
+prop (decˣ {S} _) = S
 prop (boolˣ f) = T (eval f)
 prop (equˣ f₁ f₂) = eval f₁ ≡ eval f₂
 
@@ -206,7 +206,7 @@ prove (equᶠ {{s}} x₁ x₂) with DecSetoid._≟_ s x₁ x₂
 
 prove (appᵇ b) refl = tt
 
-prove (decᶠ (true because ofʸ p)) refl = p
+prove (decˣ (true because ofʸ p)) refl = p
 prove (boolˣ f) p = subst T (sym p) tt
 prove (equˣ f₁ f₂) p = ≡ᵇ≡t⇒≡ (eval f₁) (eval f₂) p
 
@@ -301,7 +301,7 @@ prove-¬ (equᶠ {{s}} x₁ x₂) with DecSetoid._≟_ s x₁ x₂
 
 prove-¬ (appᵇ b) refl = id
 
-prove-¬ (decᶠ (false because ofⁿ p)) refl = p
+prove-¬ (decˣ (false because ofⁿ p)) refl = p
 prove-¬ (boolˣ f) p r = subst T p r
 prove-¬ (equˣ f₁ f₂) p = ≡ᵇ≡f⇒≢ (eval f₁) (eval f₂) p
 
@@ -320,7 +320,7 @@ strip (equᶠ {{s}} x₁ x₂) = equᶠ {{s}} x₁ x₂
 
 strip (appᵇ b) = appᵇ b
 
-strip (decᶠ d) = decᶠ d
+strip (decˣ d) = decˣ d
 strip (boolˣ f) = strip f
 strip (equˣ f₁ f₂) = iffᶠ (strip f₁) (strip f₂)
 
@@ -340,7 +340,7 @@ strip-sound (equᶠ {{s}} x₁ x₂) = refl
 
 strip-sound (appᵇ b) = refl
 
-strip-sound (decᶠ d) = refl
+strip-sound (decˣ d) = refl
 strip-sound (boolˣ f) = strip-sound f
 strip-sound (equˣ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
 
@@ -373,7 +373,7 @@ module Rules (env : Env) where
   ¬x⇒x≡fᵇ : ∀ {b} → Holds (notᶠ (appᵇ b)) → Holds (equᶠ b false)
   ¬x⇒x≡fᵇ {false} (holds _ _) = holds _ refl
 
-  -- XXX - what does f_to_b do?
+  -- XXX - need f_to_b?
 
   -- LFSC: true_preds_equal
   x⇒y⇒x≡yᵇ : ∀ {b₁ b₂} → Holds (appᵇ b₁) → Holds (appᵇ b₂) → Holds (equᶠ b₁ b₂)
@@ -392,46 +392,46 @@ module Rules (env : Env) where
   ¬x⇒x≡xᵇ (holds _ p) rewrite not-t⇒f p = holds _ refl
 
   -- LFSC: pred_not_iff_f
-  ¬f≡x⇒t≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ falseᶠ (appᵇ b))) → Holds (equᶠ true b)
-  ¬f≡x⇒t≡xᵇ {true} (holds _ _) = holds _ refl
+  ¬f⇔x⇒t≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ falseᶠ (appᵇ b))) → Holds (equᶠ true b)
+  ¬f⇔x⇒t≡xᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: pred_not_iff_f_2
-  ¬x≡f⇒x≡tᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) falseᶠ)) → Holds (equᶠ b true)
-  ¬x≡f⇒x≡tᵇ {true} (holds _ _) = holds _ refl
+  ¬x⇔f⇒x≡tᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) falseᶠ)) → Holds (equᶠ b true)
+  ¬x⇔f⇒x≡tᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: pred_not_iff_t
-  ¬t≡x⇒f≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ trueᶠ (appᵇ b))) → Holds (equᶠ false b)
-  ¬t≡x⇒f≡xᵇ {false} (holds _ _) = holds _ refl
+  ¬t⇔x⇒f≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ trueᶠ (appᵇ b))) → Holds (equᶠ false b)
+  ¬t⇔x⇒f≡xᵇ {false} (holds _ _) = holds _ refl
 
   -- LFSC: pred_not_iff_t_2
-  ¬x≡t⇒xfxᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) trueᶠ)) → Holds (equᶠ b false)
-  ¬x≡t⇒xfxᵇ {false} (holds _ _) = holds _ refl
+  ¬x⇔t⇒x≡fᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) trueᶠ)) → Holds (equᶠ b false)
+  ¬x⇔t⇒x≡fᵇ {false} (holds _ _) = holds _ refl
 
   -- LFSC: pred_iff_f
-  f≡x⇒f≡xᵇ : ∀ {b} → Holds (iffᶠ falseᶠ (appᵇ b)) → Holds (equᶠ false b)
-  f≡x⇒f≡xᵇ {false} (holds _ _) = holds _ refl
+  f⇔x⇒f≡xᵇ : ∀ {b} → Holds (iffᶠ falseᶠ (appᵇ b)) → Holds (equᶠ false b)
+  f⇔x⇒f≡xᵇ {false} (holds _ _) = holds _ refl
 
   -- LFSC: pred_iff_f_2
-  x≡f⇒x≡fᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) falseᶠ) → Holds (equᶠ b false)
-  x≡f⇒x≡fᵇ {false} (holds _ _) = holds _ refl
+  x⇔f⇒x≡fᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) falseᶠ) → Holds (equᶠ b false)
+  x⇔f⇒x≡fᵇ {false} (holds _ _) = holds _ refl
 
   -- LFSC: pred_iff_t
-  t≡x⇒t≡xᵇ : ∀ {b} → Holds (iffᶠ trueᶠ (appᵇ b)) → Holds (equᶠ true b)
-  t≡x⇒t≡xᵇ {true} (holds _ _) = holds _ refl
+  t⇔x⇒t≡xᵇ : ∀ {b} → Holds (iffᶠ trueᶠ (appᵇ b)) → Holds (equᶠ true b)
+  t⇔x⇒t≡xᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: pred_iff_t_2
-  x≡t⇒x≡tᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) trueᶠ) → Holds (equᶠ b true)
-  x≡t⇒x≡tᵇ {true} (holds _ _) = holds _ refl
+  x⇔t⇒x≡tᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) trueᶠ) → Holds (equᶠ b true)
+  x⇔t⇒x≡tᵇ {true} (holds _ _) = holds _ refl
 
   -- LFSC: atom
   data Atom : Var → Formula → Set where
     atom : ∀ v f → evalᵛ env v ≡ eval f → Atom v f
 
-  -- XXX - cover bvatom
+  -- XXX - need bvatom?
 
   -- LFSC: decl_atom - replaced with concrete assignments to vᵢ and aᵢ
 
-  -- XXX - cover decl_bvatom
+  -- XXX - need decl_bvatom?
 
   -- LFSC: clausify_form
   clausi : ∀ {f v} → Atom v f → Holds f → Holdsᶜ (pos v ∷ [])
@@ -454,8 +454,8 @@ module Rules (env : Env) where
   mp {f} h fn = fn h
 
   -- LFSC: iff_symm
-  x≡x : ∀ {f} → Holds (iffᶠ f f)
-  x≡x {f} = holds (iffᶠ f f) (x≡ᵇx (eval f))
+  x⇔x : (f : Formula) → Holds (iffᶠ f f)
+  x⇔x f = holds (iffᶠ f f) (x≡ᵇx (eval f))
 
   -- LFSC: contra
   contra : ∀ {f} → Holds f → Holds (notᶠ f) → Holds falseᶠ
@@ -520,11 +520,14 @@ module Rules (env : Env) where
     lem | false | _     = refl
 
   -- LFSC: impl_intro
-  ⇒-intro : ∀ {f₁ f₂} → Holds f₁ → Holds f₂ → Holds (implᶠ f₁ f₂)
-  ⇒-intro {f₁} {f₂} (holds _ p₁) (holds _ p₂) = holds _ lem
+  ⇒-intro : ∀ {f₁ f₂} → (Holds f₁ → Holds f₂) → Holds (implᶠ f₁ f₂)
+  ⇒-intro {f₁} {f₂} t = holds _ lem
     where
     lem : (eval f₁ →ᵇ eval f₂) ≡ true
-    lem rewrite p₁ | p₂ = refl
+    lem with eval f₁ | inspect eval f₁ | eval f₂ | inspect eval f₂
+    lem | true  | _      | true  | _      = refl
+    lem | true  | [ p₁ ] | false | [ p₂ ] with holds _ p₃ ← t (holds _ p₁) rewrite p₂ = p₃
+    lem | false | _      | _     | _      = refl
 
   -- LFSC: impl_elim
   ⇒-elim : ∀ {f₁ f₂} → Holds (implᶠ f₁ f₂) → Holds (orᶠ (notᶠ f₁) f₂)
@@ -694,5 +697,5 @@ module Rules (env : Env) where
     lem₂ | true  | _      rewrite a = refl
     lem₂ | false | [ eq ] rewrite a = lem₁ fn eq
 
--- XXX - cover bv_asf, bv_ast,
--- XXX - cover mpz_sub, mp_ispos, mpz_eq, mpz_lt, mpz_lte
+-- XXX - need bv_asf, bv_ast?
+-- XXX - need mpz_sub, mp_ispos, mpz_eq, mpz_lt, mpz_lte?

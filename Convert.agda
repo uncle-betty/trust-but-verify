@@ -180,7 +180,6 @@ module _ where
   open SAT
   open SMT
   open SMT.Rules
-  open Base
 
   pass₁ : ∀ {ℓ} → {S : Set ℓ} → S → S
   pass₁ x = x
@@ -198,29 +197,105 @@ module _ where
     noEnv "term"  (def (quote pass₁) , 0 , 1) $
 
     -- built-ins
-    noEnv "Bool" (def (quote Data.Bool.Bool)    , 0 , 0) $
-    noEnv "cln"  (con (quote Data.List.List.[]) , 0 , 0) $
+    noEnv "Bool" (def (quote Data.Bool.Bool)     , 0 , 0) $
+    noEnv "cln"  (con (quote Data.List.List.[])  , 0 , 0) $
+    noEnv "clc"  (con (quote Data.List.List._∷_) , 0 , 2) $
+    noEnv "cnfn" (con (quote Data.List.List.[])  , 0 , 0) $
+    noEnv "cnfc" (con (quote Data.List.List._∷_) , 0 , 2) $
 
-    -- no leading env argument, i.e., not in SAT or SMT.Rules
+    -- SAT - with leading (visible!) env argument
+      -- bool, tt, ff, var, lit
+    withEnv "pos"             (con (quote pos)        , 0 , 1) $
+    withEnv "neg"             (con (quote neg)        , 0 , 1) $
+      -- lit_flip, clause, concat_cl, clr, clause_append, simplify_clause
+    withEnv "holds"           (def (quote Holdsᶜ)     , 0 , 1) $
+    withEnv "R"               (def (quote resolve-r⁺) , 2 , 3) $
+    withEnv "Q"               (def (quote resolve-q⁺) , 2 , 3) $
+    withEnv "satlem_simplify" (def (quote mp⁺)        , 3 , 2) $
+    withEnv "satlem"          (def (quote mpᶜ)        , 2 , 2) $
+      -- clause_dedup, cnf_holds, cnfn_proof, cnfc_proof
+
+    -- SMT - no leading env argument
+      -- formula
+    noEnv "th_holds" (def (quote Holds)  , 0 , 1) $
     noEnv "true"     (con (quote trueᶠ)  , 0 , 0) $
     noEnv "false"    (con (quote falseᶠ) , 0 , 0) $
-    noEnv "and"      (con (quote andᶠ)   , 0 , 2) $
+      -- formula_op1, formula_op2, formula_op3
     noEnv "not"      (con (quote notᶠ)   , 0 , 1) $
+    noEnv "and"      (con (quote andᶠ)   , 0 , 2) $
+    noEnv "or"       (con (quote orᶠ)    , 0 , 2) $
+    noEnv "impl"     (con (quote implᶠ)  , 0 , 2) $
     noEnv "iff"      (con (quote iffᶠ)   , 0 , 2) $
+    noEnv "xor"      (con (quote xorᶠ)   , 0 , 2) $
+    noEnv "ifte"     (con (quote iteᶠ)   , 0 , 3) $
+      -- sort, term
+    noEnv "="        (con (quote equᶠ)   , 1 , 2) $
+      -- ite, let, flet, Bool
     noEnv "p_app"    (con (quote appᵇ)   , 0 , 1) $
-    noEnv "th_holds" (def (quote Holds)  , 0 , 1) $
-    noEnv "trust_f"  (def (quote trust)  , 0 , 1) $
+      -- t_true, t_false
 
-    -- with leading (visible!) env argument, i.e., in SAT or SMT.Rules
-    withEnv "holds"           (def (quote Holdsᶜ)     , 0 , 1) $
-    withEnv "satlem"          (def (quote mpᶜ)        , 2 , 2) $
-    withEnv "satlem_simplify" (def (quote mp⁺)        , 3 , 2) $
-    withEnv "R"               (def (quote resolve-r⁺) , 2 , 3) $
-    withEnv "th_let_pf"       (def (quote mp)         , 1 , 2) $
-    withEnv "ast"             (def (quote assum)      , 3 , 2) $
-    withEnv "asf"             (def (quote assum-¬)    , 3 , 2) $
-    withEnv "clausify_false"  (def (quote clausi-f)   , 0 , 1) $
-    withEnv "contra"          (def (quote contra)     , 1 , 2) $
+    -- SMT.Rules - with leading (visible!) env argument
+    withEnv "t_t_neq_f"         (def (quote t≢fᵇ)            , 0 , 0) $
+    withEnv "pred_eq_t"         (def (quote x⇒x≡tᵇ)          , 1 , 2) $
+    withEnv "pred_eq_f"         (def (quote ¬x⇒x≡fᵇ)         , 1 , 2) $
+      -- f_to_b
+    withEnv "true_preds_equal"  (def (quote x⇒y⇒x≡yᵇ)        , 2 , 2) $
+    withEnv "false_preds_equal" (def (quote ¬x⇒¬y⇒x≡yᵇ)      , 2 , 2) $
+    withEnv "pred_refl_pos"     (def (quote x⇒x≡xᵇ)          , 1 , 1) $
+    withEnv "pred_refl_neg"     (def (quote ¬x⇒x≡xᵇ)         , 1 , 1) $
+    withEnv "pred_not_iff_f"    (def (quote ¬f⇔x⇒t≡xᵇ)       , 1 , 1) $
+    withEnv "pred_not_iff_f_2"  (def (quote ¬x⇔f⇒x≡tᵇ)       , 1 , 1) $
+    withEnv "pred_not_iff_t"    (def (quote ¬t⇔x⇒f≡xᵇ)       , 1 , 1) $
+    withEnv "pred_not_iff_t_2"  (def (quote ¬x⇔t⇒x≡fᵇ)       , 1 , 1) $
+    withEnv "pred_iff_f"        (def (quote f⇔x⇒f≡xᵇ)        , 1 , 1) $
+    withEnv "pred_iff_f_2"      (def (quote x⇔f⇒x≡fᵇ)        , 1 , 1) $
+    withEnv "pred_iff_t"        (def (quote t⇔x⇒t≡xᵇ)        , 1 , 1) $
+    withEnv "pred_iff_t_2"      (def (quote x⇔t⇒x≡tᵇ)        , 1 , 1) $
+      -- atom, bvatom, decl_atom, decl_bvatom
+    withEnv "clausify_form"     (def (quote clausi)          , 2 , 2) $
+    withEnv "clausify_form_not" (def (quote clausi-¬)        , 2 , 2) $
+    withEnv "clausify_false"    (def (quote clausi-f)        , 0 , 1) $
+    withEnv "th_let_pf"         (def (quote mp)              , 1 , 2) $
+    withEnv "iff_symm"          (def (quote x⇔x)             , 0 , 1) $
+    withEnv "contra"            (def (quote contra)          , 1 , 2) $
+    withEnv "truth"             (def (quote truth)           , 0 , 0) $
+    withEnv "not_not_intro"     (def (quote ¬-¬-intro)       , 1 , 1) $
+    withEnv "not_not_elim"      (def (quote ¬-¬-elim)        , 1 , 1) $
+    withEnv "or_elim_1"         (def (quote ∨-elimˡ)         , 2 , 2) $
+    withEnv "or_elim_2"         (def (quote ∨-elimʳ)         , 2 , 2) $
+    withEnv "not_or_elim"       (def (quote de-morgan₁)      , 2 , 1) $
+    withEnv "and_elim_1"        (def (quote ∧-elimʳ)         , 2 , 1) $
+    withEnv "and_elim_2"        (def (quote ∧-elimˡ)         , 2 , 1) $
+    withEnv "not_and_elim"      (def (quote de-morgan₂)      , 2 , 1) $
+    withEnv "impl_intro"        (def (quote ⇒-intro)         , 2 , 1) $
+    withEnv "impl_elim"         (def (quote ⇒-elim)          , 2 , 1) $
+    withEnv "not_impl_elim"     (def (quote ¬-⇒-elim)        , 2 , 1) $
+    withEnv "iff_elim_1"        (def (quote ⇔-elim-⇒)        , 2 , 1) $
+    withEnv "iff_elim_2"        (def (quote ⇔-elim-⇐)        , 2 , 1) $
+    withEnv "not_iff_elim"      (def (quote ¬-⇔-elim)        , 2 , 1) $
+    withEnv "xor_elim_1"        (def (quote xor-elim-¬)      , 2 , 1) $
+    withEnv "xor_elim_2"        (def (quote xor-elim)        , 2 , 1) $
+    withEnv "not_xor_elim"      (def (quote ¬-xor-elim)      , 2 , 1) $
+    withEnv "ite_elim_1"        (def (quote ite-elim-then)   , 3 , 1) $
+    withEnv "ite_elim_2"        (def (quote ite-elim-else)   , 3 , 1) $
+    withEnv "ite_elim_3"        (def (quote ite-elim-both)   , 3 , 1) $
+    withEnv "not_ite_elim_1"    (def (quote ¬-ite-elim-then) , 3 , 1) $
+    withEnv "not_ite_elim_2"    (def (quote ¬-ite-elim-else) , 3 , 1) $
+    withEnv "not_ite_elim_3"    (def (quote ¬-ite-elim-both) , 3 , 1) $
+    withEnv "ast"               (def (quote assum)           , 3 , 2) $
+    withEnv "asf"               (def (quote assum-¬)         , 3 , 2) $
+      -- bv_asf, bv_ast, mpz_sub, mp_ispos, mpz_eq, mpz_lt, mpz_lte
+
+    -- Base
+      -- arrow, apply
+    noEnv "trust"     (def (quote Base.trust-f)  , 0 , 0) $
+    noEnv "trust_f"   (def (quote Base.trust)    , 0 , 1) $
+    noEnv "refl"      (def (quote Base.refl)     , 1 , 1) $
+    noEnv "symm"      (def (quote Base.sym)      , 3 , 1) $
+    noEnv "trans"     (def (quote Base.trans)    , 4 , 2) $
+    noEnv "negsymm"   (def (quote Base.¬-sym)    , 3 , 1) $
+    noEnv "negtrans1" (def (quote Base.¬-trans₁) , 4 , 2) $
+    noEnv "negtrans2" (def (quote Base.¬-trans₂) , 4 , 2) $
 
     end
 

@@ -29,8 +29,8 @@ postulate
   trust : ∀ f → Holds f
 
 -- LFSC: refl
-refl : {{s : DS 0ℓ 0ℓ}} → {x : DS.Carrier s} → Holds (equᶠ x x)
-refl {x} with DS._≟_ it x x | inspect (DS._≟_ it x) x
+refl : {{s : DS 0ℓ 0ℓ}} → (x : DS.Carrier s) → Holds (equᶠ x x)
+refl x with DS._≟_ it x x | inspect (DS._≟_ it x) x
 ... | true  because ofʸ _ | [ eq ] = holds _ (cong′ does eq)
 ... | false because ofⁿ p | _      = contradiction (DS.refl it {x}) p
 
