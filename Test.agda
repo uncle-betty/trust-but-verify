@@ -8,7 +8,6 @@ open import Function using (id ; _$_)
 open import Function.Equivalence using (_⇔_)
 open import Relation.Binary.PropositionalEquality using (_≡_) renaming (refl to reflₚ)
 
-open import Env
 open import SAT
 open import SMT
 open import Base

@@ -40,7 +40,6 @@ open import Relation.Nullary using (Dec ; does ; _because_ ; ofʸ ; ofⁿ)
 open import Relation.Nullary.Sum using (_⊎-dec_)
 open import Relation.Nullary.Negation using (¬?)
 
-import Env
 import SAT
 import SMT
 import Base
@@ -436,7 +435,7 @@ handleDeclAtom = do
     let
       varNo = suc (ctxVarNo ctx)
       -- var <varNo> (eval t₁)
-      vVal = con (quote Env.Var.var) $
+      vVal = con (quote SAT.Var.var) $
         visibleArg (lit (nat varNo)) ∷
         visibleArg (def (quote SMT.eval) $
           visibleArg t₁ ∷
@@ -524,8 +523,7 @@ macro
   proofTerm (inj₂ (_ , t)) hole = unify hole t
 
 module Test where
-  open Env renaming (var to var′)
-  open SAT
+  open SAT renaming (var to var′)
   open SMT
 
   test : String → List String ⊎ Term

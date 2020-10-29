@@ -25,7 +25,8 @@ open import Relation.Binary.PropositionalEquality
 open import Relation.Nullary using (¬_ ; Dec ; does ; _because_ ; ofʸ ; ofⁿ)
 open import Relation.Nullary.Negation using (contradiction)
 
-open import Env using (Var ; var ; evalᵛ)
+open import SAT
+  using (Var ; evalᵛ ; pos ; neg ; Holdsᶜ ; holdsᶜ ; holdsᶜ-[] ; evalᶜ ; not-t⇒f ; f⇒not-t)
 
 instance
   _ = bool-setoid
@@ -347,9 +348,6 @@ strip-sound (equˣ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
 -- LFSC: th_holds
 data Holds : Formula → Set where
   holds : ∀ f → eval f ≡ true → Holds f
-
-open import SAT
-  using (pos ; neg ; Holdsᶜ ; holdsᶜ ; holdsᶜ-[] ; evalᶜ ; not-t⇒f ; f⇒not-t)
 
 final : ∀ f → (Holds (notᶠ (strip f)) → Holdsᶜ []) → prop f
 final f h = prove f $ subst (_≡ true) (strip-sound f) (lem (strip f) h)
