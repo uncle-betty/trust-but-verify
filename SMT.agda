@@ -25,7 +25,7 @@ open import Relation.Binary.PropositionalEquality
 open import Relation.Nullary using (¬_ ; Dec ; does ; _because_ ; ofʸ ; ofⁿ)
 open import Relation.Nullary.Negation using (contradiction)
 
-open import Env using (Var ; var ; Env ; evalᵛ)
+open import Env using (Var ; var ; evalᵛ)
 
 instance
   _ = bool-setoid
@@ -348,354 +348,348 @@ strip-sound (equˣ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
 data Holds : Formula → Set where
   holds : ∀ f → eval f ≡ true → Holds f
 
-module Rules (env : Env) where
+open import SAT
+  using (pos ; neg ; Holdsᶜ ; holdsᶜ ; holdsᶜ-[] ; evalᶜ ; not-t⇒f ; f⇒not-t)
 
-  open import SAT env
-    using (pos ; neg ; Holdsᶜ ; holdsᶜ ; holdsᶜ-[] ; evalᶜ ; not-t⇒f ; f⇒not-t)
+final : ∀ f → (Holds (notᶠ (strip f)) → Holdsᶜ []) → prop f
+final f h = prove f $ subst (_≡ true) (strip-sound f) (lem (strip f) h)
+  where
+  lem : ∀ f → (Holds (notᶠ f) → Holdsᶜ []) → eval f ≡ true
+  lem f h with eval f | inspect eval f
+  ... | true  | [ eq ] = refl
+  ... | false | [ eq ] = contradiction (holds (notᶠ f) (f⇒not-t eq)) (holdsᶜ-[] ∘ h)
 
-  final : ∀ f → (Holds (notᶠ (strip f)) → Holdsᶜ []) → prop f
-  final f h = prove f $ subst (_≡ true) (strip-sound f) (lem (strip f) h)
-    where
-    lem : ∀ f → (Holds (notᶠ f) → Holdsᶜ []) → eval f ≡ true
-    lem f h with eval f | inspect eval f
-    ... | true  | [ eq ] = refl
-    ... | false | [ eq ] = contradiction (holds (notᶠ f) (f⇒not-t eq)) (holdsᶜ-[] ∘ h)
+-- LFSC: t_t_neq_f
+t≢fᵇ : Holds (notᶠ (equᶠ true false))
+t≢fᵇ = holds _ refl
 
-  -- LFSC: t_t_neq_f
-  t≢fᵇ : Holds (notᶠ (equᶠ true false))
-  t≢fᵇ = holds _ refl
+-- LFSC: pred_eq_t
+x⇒x≡tᵇ : ∀ {b} → Holds (appᵇ b) → Holds (equᶠ b true)
+x⇒x≡tᵇ {true} (holds _ _) = holds _ refl
 
-  -- LFSC: pred_eq_t
-  x⇒x≡tᵇ : ∀ {b} → Holds (appᵇ b) → Holds (equᶠ b true)
-  x⇒x≡tᵇ {true} (holds _ _) = holds _ refl
+-- LFSC: pred_eq_f
+¬x⇒x≡fᵇ : ∀ {b} → Holds (notᶠ (appᵇ b)) → Holds (equᶠ b false)
+¬x⇒x≡fᵇ {false} (holds _ _) = holds _ refl
 
-  -- LFSC: pred_eq_f
-  ¬x⇒x≡fᵇ : ∀ {b} → Holds (notᶠ (appᵇ b)) → Holds (equᶠ b false)
-  ¬x⇒x≡fᵇ {false} (holds _ _) = holds _ refl
+-- XXX - need f_to_b?
 
-  -- XXX - need f_to_b?
+-- LFSC: true_preds_equal
+x⇒y⇒x≡yᵇ : ∀ {b₁ b₂} → Holds (appᵇ b₁) → Holds (appᵇ b₂) → Holds (equᶠ b₁ b₂)
+x⇒y⇒x≡yᵇ {true} {true} (holds _ _) (holds _ _) = holds _ refl
 
-  -- LFSC: true_preds_equal
-  x⇒y⇒x≡yᵇ : ∀ {b₁ b₂} → Holds (appᵇ b₁) → Holds (appᵇ b₂) → Holds (equᶠ b₁ b₂)
-  x⇒y⇒x≡yᵇ {true} {true} (holds _ _) (holds _ _) = holds _ refl
+-- LFSC: false_preds_equal
+¬x⇒¬y⇒x≡yᵇ : ∀ {b₁ b₂} → Holds (notᶠ (appᵇ b₁)) → Holds (notᶠ (appᵇ b₂)) → Holds (equᶠ b₁ b₂)
+¬x⇒¬y⇒x≡yᵇ {false} {false} (holds _ _) (holds _ _) = holds _ refl
 
-  -- LFSC: false_preds_equal
-  ¬x⇒¬y⇒x≡yᵇ : ∀ {b₁ b₂} → Holds (notᶠ (appᵇ b₁)) → Holds (notᶠ (appᵇ b₂)) → Holds (equᶠ b₁ b₂)
-  ¬x⇒¬y⇒x≡yᵇ {false} {false} (holds _ _) (holds _ _) = holds _ refl
+-- LFSC: pred_refl_pos
+x⇒x≡xᵇ : ∀ {b} → Holds (appᵇ b) → Holds (equᶠ b b)
+x⇒x≡xᵇ (holds _ refl) = holds _ refl
 
-  -- LFSC: pred_refl_pos
-  x⇒x≡xᵇ : ∀ {b} → Holds (appᵇ b) → Holds (equᶠ b b)
-  x⇒x≡xᵇ (holds _ refl) = holds _ refl
+-- LFSC: pred_refl_neg
+¬x⇒x≡xᵇ : ∀ {b} → Holds (notᶠ (appᵇ b)) → Holds (equᶠ b b)
+¬x⇒x≡xᵇ (holds _ p) rewrite not-t⇒f p = holds _ refl
 
-  -- LFSC: pred_refl_neg
-  ¬x⇒x≡xᵇ : ∀ {b} → Holds (notᶠ (appᵇ b)) → Holds (equᶠ b b)
-  ¬x⇒x≡xᵇ (holds _ p) rewrite not-t⇒f p = holds _ refl
+-- LFSC: pred_not_iff_f
+¬f⇔x⇒t≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ falseᶠ (appᵇ b))) → Holds (equᶠ true b)
+¬f⇔x⇒t≡xᵇ {true} (holds _ _) = holds _ refl
 
-  -- LFSC: pred_not_iff_f
-  ¬f⇔x⇒t≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ falseᶠ (appᵇ b))) → Holds (equᶠ true b)
-  ¬f⇔x⇒t≡xᵇ {true} (holds _ _) = holds _ refl
+-- LFSC: pred_not_iff_f_2
+¬x⇔f⇒x≡tᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) falseᶠ)) → Holds (equᶠ b true)
+¬x⇔f⇒x≡tᵇ {true} (holds _ _) = holds _ refl
 
-  -- LFSC: pred_not_iff_f_2
-  ¬x⇔f⇒x≡tᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) falseᶠ)) → Holds (equᶠ b true)
-  ¬x⇔f⇒x≡tᵇ {true} (holds _ _) = holds _ refl
+-- LFSC: pred_not_iff_t
+¬t⇔x⇒f≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ trueᶠ (appᵇ b))) → Holds (equᶠ false b)
+¬t⇔x⇒f≡xᵇ {false} (holds _ _) = holds _ refl
 
-  -- LFSC: pred_not_iff_t
-  ¬t⇔x⇒f≡xᵇ : ∀ {b} → Holds (notᶠ (iffᶠ trueᶠ (appᵇ b))) → Holds (equᶠ false b)
-  ¬t⇔x⇒f≡xᵇ {false} (holds _ _) = holds _ refl
+-- LFSC: pred_not_iff_t_2
+¬x⇔t⇒x≡fᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) trueᶠ)) → Holds (equᶠ b false)
+¬x⇔t⇒x≡fᵇ {false} (holds _ _) = holds _ refl
 
-  -- LFSC: pred_not_iff_t_2
-  ¬x⇔t⇒x≡fᵇ : ∀ {b} → Holds (notᶠ (iffᶠ (appᵇ b) trueᶠ)) → Holds (equᶠ b false)
-  ¬x⇔t⇒x≡fᵇ {false} (holds _ _) = holds _ refl
+-- LFSC: pred_iff_f
+f⇔x⇒f≡xᵇ : ∀ {b} → Holds (iffᶠ falseᶠ (appᵇ b)) → Holds (equᶠ false b)
+f⇔x⇒f≡xᵇ {false} (holds _ _) = holds _ refl
 
-  -- LFSC: pred_iff_f
-  f⇔x⇒f≡xᵇ : ∀ {b} → Holds (iffᶠ falseᶠ (appᵇ b)) → Holds (equᶠ false b)
-  f⇔x⇒f≡xᵇ {false} (holds _ _) = holds _ refl
+-- LFSC: pred_iff_f_2
+x⇔f⇒x≡fᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) falseᶠ) → Holds (equᶠ b false)
+x⇔f⇒x≡fᵇ {false} (holds _ _) = holds _ refl
 
-  -- LFSC: pred_iff_f_2
-  x⇔f⇒x≡fᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) falseᶠ) → Holds (equᶠ b false)
-  x⇔f⇒x≡fᵇ {false} (holds _ _) = holds _ refl
+-- LFSC: pred_iff_t
+t⇔x⇒t≡xᵇ : ∀ {b} → Holds (iffᶠ trueᶠ (appᵇ b)) → Holds (equᶠ true b)
+t⇔x⇒t≡xᵇ {true} (holds _ _) = holds _ refl
 
-  -- LFSC: pred_iff_t
-  t⇔x⇒t≡xᵇ : ∀ {b} → Holds (iffᶠ trueᶠ (appᵇ b)) → Holds (equᶠ true b)
-  t⇔x⇒t≡xᵇ {true} (holds _ _) = holds _ refl
+-- LFSC: pred_iff_t_2
+x⇔t⇒x≡tᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) trueᶠ) → Holds (equᶠ b true)
+x⇔t⇒x≡tᵇ {true} (holds _ _) = holds _ refl
 
-  -- LFSC: pred_iff_t_2
-  x⇔t⇒x≡tᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) trueᶠ) → Holds (equᶠ b true)
-  x⇔t⇒x≡tᵇ {true} (holds _ _) = holds _ refl
+-- LFSC: atom
+data Atom : Var → Formula → Set where
+  atom : ∀ v f → evalᵛ v ≡ eval f → Atom v f
 
-  -- LFSC: atom
-  data Atom : Var → Formula → Set where
-    atom : ∀ v f → evalᵛ env v ≡ eval f → Atom v f
+-- XXX - need bvatom?
 
-  -- XXX - need bvatom?
+-- LFSC: decl_atom - replaced with concrete assignments to vᵢ and aᵢ
 
-  -- LFSC: decl_atom - replaced with concrete assignments to vᵢ and aᵢ
+-- XXX - need decl_bvatom?
 
-  -- XXX - need decl_bvatom?
+-- LFSC: clausify_form
+clausi : ∀ {f v} → Atom v f → Holds f → Holdsᶜ (pos v ∷ [])
 
-  -- LFSC: clausify_form
-  clausi : ∀ {f v} → Atom v f → Holds f → Holdsᶜ (pos v ∷ [])
+clausi {f} {v} (atom .v .f a) (holds .f h)
+  rewrite h = holdsᶜ (pos v ∷ []) (subst (λ # → # ∨ false ≡ true) (sym a) refl)
 
-  clausi {f} {v} (atom .v .f a) (holds .f h)
-    rewrite h = holdsᶜ (pos v ∷ []) (subst (λ # → # ∨ false ≡ true) (sym a) refl)
+-- LFSC: clausify_form_not
+clausi-¬ : ∀ {f v} → Atom v f → Holds (notᶠ f) → Holdsᶜ (neg v ∷ [])
 
-  -- LFSC: clausify_form_not
-  clausi-¬ : ∀ {f v} → Atom v f → Holds (notᶠ f) → Holdsᶜ (neg v ∷ [])
+clausi-¬ {f} {v} (atom .v .f a) (holds .(notᶠ f) h)
+  rewrite not-t⇒f h = holdsᶜ (neg v ∷ []) (subst (λ # → not # ∨ false ≡ true) (sym a) refl)
 
-  clausi-¬ {f} {v} (atom .v .f a) (holds .(notᶠ f) h)
-    rewrite not-t⇒f h = holdsᶜ (neg v ∷ []) (subst (λ # → not # ∨ false ≡ true) (sym a) refl)
+-- LFSC: clausify_false
+clausi-f : Holds falseᶠ → Holdsᶜ []
+clausi-f (holds .falseᶠ ())
 
-  -- LFSC: clausify_false
-  clausi-f : Holds falseᶠ → Holdsᶜ []
-  clausi-f (holds .falseᶠ ())
+-- LFSC: th_let_pf
+mp : ∀ {f} → Holds f → (Holds f → Holdsᶜ []) → Holdsᶜ []
+mp {f} h fn = fn h
 
-  -- LFSC: th_let_pf
-  mp : ∀ {f} → Holds f → (Holds f → Holdsᶜ []) → Holdsᶜ []
-  mp {f} h fn = fn h
+-- LFSC: iff_symm
+x⇔x : (f : Formula) → Holds (iffᶠ f f)
+x⇔x f = holds (iffᶠ f f) (x≡ᵇx (eval f))
 
-  -- LFSC: iff_symm
-  x⇔x : (f : Formula) → Holds (iffᶠ f f)
-  x⇔x f = holds (iffᶠ f f) (x≡ᵇx (eval f))
+-- LFSC: contra
+contra : ∀ {f} → Holds f → Holds (notᶠ f) → Holds falseᶠ
+contra {f} (holds .f h₁) (holds .(notᶠ f) h₂) = contradiction (not-t⇒f h₂) (not-¬ h₁)
 
-  -- LFSC: contra
-  contra : ∀ {f} → Holds f → Holds (notᶠ f) → Holds falseᶠ
-  contra {f} (holds .f h₁) (holds .(notᶠ f) h₂) = contradiction (not-t⇒f h₂) (not-¬ h₁)
+-- LFSC: truth
+truth : Holds trueᶠ
+truth = holds trueᶠ refl
 
-  -- LFSC: truth
-  truth : Holds trueᶠ
-  truth = holds trueᶠ refl
+-- LFSC: not_not_intro
+¬-¬-intro : ∀ {f} → Holds f → Holds (notᶠ (notᶠ f))
+¬-¬-intro {f} (holds _ p) = holds _ lem
+  where
+  lem : not (not (eval f)) ≡ true
+  lem rewrite p = refl
 
-  -- LFSC: not_not_intro
-  ¬-¬-intro : ∀ {f} → Holds f → Holds (notᶠ (notᶠ f))
-  ¬-¬-intro {f} (holds _ p) = holds _ lem
-    where
-    lem : not (not (eval f)) ≡ true
-    lem rewrite p = refl
+-- LFSC: not_not_elim
+¬-¬-elim : ∀ {f} → Holds (notᶠ (notᶠ f)) → Holds f
+¬-¬-elim {f} (holds _ p) = holds _ lem
+  where
+  lem : eval f ≡ true
+  lem with eval f
+  lem | true  = refl
+  lem | false = contradiction p (not-¬ refl)
 
-  -- LFSC: not_not_elim
-  ¬-¬-elim : ∀ {f} → Holds (notᶠ (notᶠ f)) → Holds f
-  ¬-¬-elim {f} (holds _ p) = holds _ lem
-    where
-    lem : eval f ≡ true
-    lem with eval f
-    lem | true  = refl
-    lem | false = contradiction p (not-¬ refl)
+-- LFSC: or_elim_1
+∨-elimˡ : ∀ {f₁ f₂} → Holds (notᶠ f₁) → Holds (orᶠ f₁ f₂) → Holds f₂
+∨-elimˡ (holds _ p₁) (holds _ p₂) rewrite not-t⇒f p₁ = holds _ p₂
 
-  -- LFSC: or_elim_1
-  ∨-elimˡ : ∀ {f₁ f₂} → Holds (notᶠ f₁) → Holds (orᶠ f₁ f₂) → Holds f₂
-  ∨-elimˡ (holds _ p₁) (holds _ p₂) rewrite not-t⇒f p₁ = holds _ p₂
+-- LFSC: or_elim_2
+∨-elimʳ : ∀ {f₁ f₂} → Holds (notᶠ f₂) → Holds (orᶠ f₁ f₂) → Holds f₁
+∨-elimʳ {f₁} (holds _ p₁) (holds _ p₂) rewrite not-t⇒f p₁ | ∨-identityʳ (eval f₁) = holds _ p₂
 
-  -- LFSC: or_elim_2
-  ∨-elimʳ : ∀ {f₁ f₂} → Holds (notᶠ f₂) → Holds (orᶠ f₁ f₂) → Holds f₁
-  ∨-elimʳ {f₁} (holds _ p₁) (holds _ p₂) rewrite not-t⇒f p₁ | ∨-identityʳ (eval f₁) = holds _ p₂
+-- LFSC: not_or_elim
+de-morgan₁ : ∀ {f₁ f₂} → Holds (notᶠ (orᶠ f₁ f₂)) → Holds (andᶠ (notᶠ f₁) (notᶠ f₂))
+de-morgan₁ {f₁} {f₂} (holds _ p) = holds _ lem
+  where
+  lem : not (eval f₁) ∧ not (eval f₂) ≡ true
+  lem with eval f₁ | eval f₂
+  lem | true  | _     = contradiction p (not-¬ refl)
+  lem | false | true  = contradiction p (not-¬ refl)
+  lem | false | false = refl
 
-  -- LFSC: not_or_elim
-  de-morgan₁ : ∀ {f₁ f₂} → Holds (notᶠ (orᶠ f₁ f₂)) → Holds (andᶠ (notᶠ f₁) (notᶠ f₂))
-  de-morgan₁ {f₁} {f₂} (holds _ p) = holds _ lem
-    where
-    lem : not (eval f₁) ∧ not (eval f₂) ≡ true
-    lem with eval f₁ | eval f₂
-    lem | true  | _     = contradiction p (not-¬ refl)
-    lem | false | true  = contradiction p (not-¬ refl)
-    lem | false | false = refl
+-- LFSC: and_elim_1
+∧-elimʳ : ∀ {f₁ f₂} → Holds (andᶠ f₁ f₂) → Holds f₁
+∧-elimʳ {f₁} (holds _ p) with eval f₁ | inspect eval f₁
+∧-elimʳ {f₁} (holds _ p) | true | [ eq ] = holds _ eq
 
-  -- LFSC: and_elim_1
-  ∧-elimʳ : ∀ {f₁ f₂} → Holds (andᶠ f₁ f₂) → Holds f₁
-  ∧-elimʳ {f₁} (holds _ p) with eval f₁ | inspect eval f₁
-  ∧-elimʳ {f₁} (holds _ p) | true | [ eq ] = holds _ eq
+-- LFSC: and_elim_2
+∧-elimˡ : ∀ {f₁ f₂} → Holds (andᶠ f₁ f₂) → Holds f₂
+∧-elimˡ {f₁} {f₂} (holds _ p) with eval f₁
+∧-elimˡ {f₁} {f₂} (holds _ p) | true = holds _ p
 
-  -- LFSC: and_elim_2
-  ∧-elimˡ : ∀ {f₁ f₂} → Holds (andᶠ f₁ f₂) → Holds f₂
-  ∧-elimˡ {f₁} {f₂} (holds _ p) with eval f₁
-  ∧-elimˡ {f₁} {f₂} (holds _ p) | true = holds _ p
+-- LFSC: not_and_elim
+de-morgan₂ : ∀ {f₁ f₂} → Holds (notᶠ (andᶠ f₁ f₂)) → Holds (orᶠ (notᶠ f₁) (notᶠ f₂))
+de-morgan₂ {f₁} {f₂} (holds _ p) = holds _ lem
+  where
+  lem : not (eval f₁) ∨ not (eval f₂) ≡ true
+  lem with eval f₁ | eval f₂
+  lem | true  | true  = contradiction p (not-¬ refl)
+  lem | true  | false = refl
+  lem | false | _     = refl
 
-  -- LFSC: not_and_elim
-  de-morgan₂ : ∀ {f₁ f₂} → Holds (notᶠ (andᶠ f₁ f₂)) → Holds (orᶠ (notᶠ f₁) (notᶠ f₂))
-  de-morgan₂ {f₁} {f₂} (holds _ p) = holds _ lem
-    where
-    lem : not (eval f₁) ∨ not (eval f₂) ≡ true
-    lem with eval f₁ | eval f₂
-    lem | true  | true  = contradiction p (not-¬ refl)
-    lem | true  | false = refl
-    lem | false | _     = refl
+-- LFSC: impl_intro
+⇒-intro : ∀ {f₁ f₂} → (Holds f₁ → Holds f₂) → Holds (implᶠ f₁ f₂)
+⇒-intro {f₁} {f₂} fn = holds _ lem
+  where
+  lem : (eval f₁ →ᵇ eval f₂) ≡ true
+  lem with eval f₁ | inspect eval f₁ | eval f₂ | inspect eval f₂
+  lem | true  | _      | true  | _      = refl
+  lem | true  | [ p₁ ] | false | [ p₂ ] with holds _ p₃ ← fn (holds _ p₁) rewrite p₂ = p₃
+  lem | false | _      | _     | _      = refl
 
-  -- LFSC: impl_intro
-  ⇒-intro : ∀ {f₁ f₂} → (Holds f₁ → Holds f₂) → Holds (implᶠ f₁ f₂)
-  ⇒-intro {f₁} {f₂} t = holds _ lem
-    where
-    lem : (eval f₁ →ᵇ eval f₂) ≡ true
-    lem with eval f₁ | inspect eval f₁ | eval f₂ | inspect eval f₂
-    lem | true  | _      | true  | _      = refl
-    lem | true  | [ p₁ ] | false | [ p₂ ] with holds _ p₃ ← t (holds _ p₁) rewrite p₂ = p₃
-    lem | false | _      | _     | _      = refl
+-- LFSC: impl_elim
+⇒-elim : ∀ {f₁ f₂} → Holds (implᶠ f₁ f₂) → Holds (orᶠ (notᶠ f₁) f₂)
+⇒-elim {f₁} {f₂} (holds _ p) = holds _ lem
+  where
+  lem : not (eval f₁) ∨ eval f₂ ≡ true
+  lem with eval f₁ | eval f₂
+  lem | true  | true  = refl
+  lem | true  | false = contradiction p (not-¬ refl)
+  lem | false | _     = refl
 
-  -- LFSC: impl_elim
-  ⇒-elim : ∀ {f₁ f₂} → Holds (implᶠ f₁ f₂) → Holds (orᶠ (notᶠ f₁) f₂)
-  ⇒-elim {f₁} {f₂} (holds _ p) = holds _ lem
-    where
-    lem : not (eval f₁) ∨ eval f₂ ≡ true
-    lem with eval f₁ | eval f₂
-    lem | true  | true  = refl
-    lem | true  | false = contradiction p (not-¬ refl)
-    lem | false | _     = refl
+-- LFSC: not_impl_elim
+¬-⇒-elim : ∀ {f₁ f₂} → Holds (notᶠ (implᶠ f₁ f₂)) → Holds (andᶠ f₁ (notᶠ f₂))
+¬-⇒-elim {f₁} {f₂} (holds _ p) = holds _ lem
+  where
+  lem : eval f₁ ∧ not (eval f₂) ≡ true
+  lem with eval f₁ | eval f₂
+  lem | true  | true  = contradiction p (not-¬ refl)
+  lem | true  | false = refl
+  lem | false | _     = contradiction p (not-¬ refl)
 
-  -- LFSC: not_impl_elim
-  ¬-⇒-elim : ∀ {f₁ f₂} → Holds (notᶠ (implᶠ f₁ f₂)) → Holds (andᶠ f₁ (notᶠ f₂))
-  ¬-⇒-elim {f₁} {f₂} (holds _ p) = holds _ lem
-    where
-    lem : eval f₁ ∧ not (eval f₂) ≡ true
-    lem with eval f₁ | eval f₂
-    lem | true  | true  = contradiction p (not-¬ refl)
-    lem | true  | false = refl
-    lem | false | _     = contradiction p (not-¬ refl)
+-- LFSC: iff_elim_1
+⇔-elim-⇒ : ∀ {f₁ f₂} → Holds (iffᶠ f₁ f₂) → Holds (orᶠ (notᶠ f₁) f₂)
+⇔-elim-⇒ {f₁} {f₂} (holds _ p) = holds _ lem
+  where
+  lem : not (eval f₁) ∨ eval f₂ ≡ true
+  lem with eval f₁ | eval f₂
+  lem | true  | true  = refl
+  lem | true  | false = contradiction p (not-¬ refl)
+  lem | false | true  = contradiction p (not-¬ refl)
+  lem | false | false = refl
 
-  -- LFSC: iff_elim_1
-  ⇔-elim-⇒ : ∀ {f₁ f₂} → Holds (iffᶠ f₁ f₂) → Holds (orᶠ (notᶠ f₁) f₂)
-  ⇔-elim-⇒ {f₁} {f₂} (holds _ p) = holds _ lem
-    where
-    lem : not (eval f₁) ∨ eval f₂ ≡ true
-    lem with eval f₁ | eval f₂
-    lem | true  | true  = refl
-    lem | true  | false = contradiction p (not-¬ refl)
-    lem | false | true  = contradiction p (not-¬ refl)
-    lem | false | false = refl
+-- LFSC: iff_elim_2
+⇔-elim-⇐ : ∀ {f₁ f₂} → Holds (iffᶠ f₁ f₂) → Holds (orᶠ f₁ (notᶠ f₂))
+⇔-elim-⇐ {f₁} {f₂} (holds _ p) = holds _ lem
+  where
+  lem : eval f₁ ∨ not (eval f₂) ≡ true
+  lem with eval f₁ | eval f₂
+  lem | true  | true  = refl
+  lem | true  | false = contradiction p (not-¬ refl)
+  lem | false | true  = contradiction p (not-¬ refl)
+  lem | false | false = refl
 
-  -- LFSC: iff_elim_2
-  ⇔-elim-⇐ : ∀ {f₁ f₂} → Holds (iffᶠ f₁ f₂) → Holds (orᶠ f₁ (notᶠ f₂))
-  ⇔-elim-⇐ {f₁} {f₂} (holds _ p) = holds _ lem
-    where
-    lem : eval f₁ ∨ not (eval f₂) ≡ true
-    lem with eval f₁ | eval f₂
-    lem | true  | true  = refl
-    lem | true  | false = contradiction p (not-¬ refl)
-    lem | false | true  = contradiction p (not-¬ refl)
-    lem | false | false = refl
+-- LFSC: not_iff_elim
+¬-⇔-elim : ∀ {f₁ f₂} → Holds (notᶠ (iffᶠ f₁ f₂)) → Holds (iffᶠ f₁ (notᶠ f₂))
+¬-⇔-elim {f₁} {f₂} (holds _ p) = holds _ lem
+  where
+  lem : (eval f₁ ≡ᵇ not (eval f₂)) ≡ true
+  lem with eval f₁ | eval f₂
+  lem | true  | true  = contradiction p (not-¬ refl)
+  lem | true  | false = refl
+  lem | false | true  = refl
+  lem | false | false = contradiction p (not-¬ refl)
 
-  -- LFSC: not_iff_elim
-  ¬-⇔-elim : ∀ {f₁ f₂} → Holds (notᶠ (iffᶠ f₁ f₂)) → Holds (iffᶠ f₁ (notᶠ f₂))
-  ¬-⇔-elim {f₁} {f₂} (holds _ p) = holds _ lem
-    where
-    lem : (eval f₁ ≡ᵇ not (eval f₂)) ≡ true
-    lem with eval f₁ | eval f₂
-    lem | true  | true  = contradiction p (not-¬ refl)
-    lem | true  | false = refl
-    lem | false | true  = refl
-    lem | false | false = contradiction p (not-¬ refl)
+-- LFSC: xor_elim_1
+xor-elim-¬ : ∀ {f₁ f₂} → Holds (xorᶠ f₁ f₂) → Holds (orᶠ (notᶠ f₁) (notᶠ f₂))
+xor-elim-¬ {f₁} {f₂} (holds _ p) = holds _ lem
+  where
+  lem : not (eval f₁) ∨ not (eval f₂) ≡ true
+  lem with eval f₁ | eval f₂
+  lem | true  | true  = contradiction p (not-¬ refl)
+  lem | true  | false = refl
+  lem | false | true  = refl
+  lem | false | false = contradiction p (not-¬ refl)
 
-  -- LFSC: xor_elim_1
-  xor-elim-¬ : ∀ {f₁ f₂} → Holds (xorᶠ f₁ f₂) → Holds (orᶠ (notᶠ f₁) (notᶠ f₂))
-  xor-elim-¬ {f₁} {f₂} (holds _ p) = holds _ lem
-    where
-    lem : not (eval f₁) ∨ not (eval f₂) ≡ true
-    lem with eval f₁ | eval f₂
-    lem | true  | true  = contradiction p (not-¬ refl)
-    lem | true  | false = refl
-    lem | false | true  = refl
-    lem | false | false = contradiction p (not-¬ refl)
+-- LFSC: xor_elim_2
+xor-elim : ∀ {f₁ f₂} → Holds (xorᶠ f₁ f₂) → Holds (orᶠ f₁ f₂)
+xor-elim {f₁} {f₂} (holds _ p) = holds _ lem
+  where
+  lem : eval f₁ ∨ eval f₂ ≡ true
+  lem with eval f₁ | eval f₂
+  lem | true  | true  = contradiction p (not-¬ refl)
+  lem | true  | false = refl
+  lem | false | true  = refl
+  lem | false | false = contradiction p (not-¬ refl)
 
-  -- LFSC: xor_elim_2
-  xor-elim : ∀ {f₁ f₂} → Holds (xorᶠ f₁ f₂) → Holds (orᶠ f₁ f₂)
-  xor-elim {f₁} {f₂} (holds _ p) = holds _ lem
-    where
-    lem : eval f₁ ∨ eval f₂ ≡ true
-    lem with eval f₁ | eval f₂
-    lem | true  | true  = contradiction p (not-¬ refl)
-    lem | true  | false = refl
-    lem | false | true  = refl
-    lem | false | false = contradiction p (not-¬ refl)
+-- LFSC: not_xor_elim
+¬-xor-elim : ∀ {f₁ f₂} → Holds (notᶠ (xorᶠ f₁ f₂)) → Holds (iffᶠ f₁ f₂)
+¬-xor-elim {f₁} {f₂} (holds _ p) = holds _ lem
+  where
+  lem : (eval f₁ ≡ᵇ eval f₂) ≡ true
+  lem with eval f₁ | eval f₂
+  lem | true  | true  = refl
+  lem | true  | false = contradiction p (not-¬ refl)
+  lem | false | true  = contradiction p (not-¬ refl)
+  lem | false | false = refl
 
-  -- LFSC: not_xor_elim
-  ¬-xor-elim : ∀ {f₁ f₂} → Holds (notᶠ (xorᶠ f₁ f₂)) → Holds (iffᶠ f₁ f₂)
-  ¬-xor-elim {f₁} {f₂} (holds _ p) = holds _ lem
-    where
-    lem : (eval f₁ ≡ᵇ eval f₂) ≡ true
-    lem with eval f₁ | eval f₂
-    lem | true  | true  = refl
-    lem | true  | false = contradiction p (not-¬ refl)
-    lem | false | true  = contradiction p (not-¬ refl)
-    lem | false | false = refl
+-- LFSC: ite_elim_1
+ite-elim-then : ∀ {f₁ f₂ f₃} → Holds (iteᶠ f₁ f₂ f₃) → Holds (orᶠ (notᶠ f₁) f₂)
+ite-elim-then {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
+  where
+  lem : not (eval f₁) ∨ eval f₂ ≡ true
+  lem with eval f₁
+  ... | true  = p
+  ... | false = refl
 
-  -- LFSC: ite_elim_1
-  ite-elim-then : ∀ {f₁ f₂ f₃} → Holds (iteᶠ f₁ f₂ f₃) → Holds (orᶠ (notᶠ f₁) f₂)
-  ite-elim-then {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
-    where
-    lem : not (eval f₁) ∨ eval f₂ ≡ true
-    lem with eval f₁
-    ... | true  = p
-    ... | false = refl
+-- LFSC: ite_elim_2
+ite-elim-else : ∀ {f₁ f₂ f₃} → Holds (iteᶠ f₁ f₂ f₃) → Holds (orᶠ f₁ f₃)
+ite-elim-else {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
+  where
+  lem : eval f₁ ∨ eval f₃ ≡ true
+  lem with eval f₁
+  ... | true  = refl
+  ... | false = p
 
-  -- LFSC: ite_elim_2
-  ite-elim-else : ∀ {f₁ f₂ f₃} → Holds (iteᶠ f₁ f₂ f₃) → Holds (orᶠ f₁ f₃)
-  ite-elim-else {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
-    where
-    lem : eval f₁ ∨ eval f₃ ≡ true
-    lem with eval f₁
-    ... | true  = refl
-    ... | false = p
+-- LFSC: ite_elim_3
+ite-elim-both : ∀ {f₁ f₂ f₃} → Holds (iteᶠ f₁ f₂ f₃) → Holds (orᶠ f₂ f₃)
+ite-elim-both {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
+  where
+  lem : eval f₂ ∨ eval f₃ ≡ true
+  lem with eval f₁
+  ... | true  rewrite p = refl
+  ... | false rewrite p = ∨-zeroʳ (eval f₂)
 
-  -- LFSC: ite_elim_3
-  ite-elim-both : ∀ {f₁ f₂ f₃} → Holds (iteᶠ f₁ f₂ f₃) → Holds (orᶠ f₂ f₃)
-  ite-elim-both {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
-    where
-    lem : eval f₂ ∨ eval f₃ ≡ true
-    lem with eval f₁
-    ... | true  rewrite p = refl
-    ... | false rewrite p = ∨-zeroʳ (eval f₂)
+-- LFSC: not_ite_elim_1
+¬-ite-elim-then : ∀ {f₁ f₂ f₃} → Holds (notᶠ (iteᶠ f₁ f₂ f₃)) → Holds (orᶠ (notᶠ f₁) (notᶠ f₂))
+¬-ite-elim-then {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
+  where
+  lem : not (eval f₁) ∨ not (eval f₂) ≡ true
+  lem with eval f₁
+  ... | true  = p
+  ... | false = refl
 
-  -- LFSC: not_ite_elim_1
-  ¬-ite-elim-then : ∀ {f₁ f₂ f₃} → Holds (notᶠ (iteᶠ f₁ f₂ f₃)) → Holds (orᶠ (notᶠ f₁) (notᶠ f₂))
-  ¬-ite-elim-then {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
-    where
-    lem : not (eval f₁) ∨ not (eval f₂) ≡ true
-    lem with eval f₁
-    ... | true  = p
-    ... | false = refl
+-- LFSC: not_ite_elim_2
+¬-ite-elim-else : ∀ {f₁ f₂ f₃} → Holds (notᶠ (iteᶠ f₁ f₂ f₃)) → Holds (orᶠ f₁ (notᶠ f₃))
+¬-ite-elim-else {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
+  where
+  lem : eval f₁ ∨ not (eval f₃) ≡ true
+  lem with eval f₁
+  ... | true  = refl
+  ... | false = p
 
-  -- LFSC: not_ite_elim_2
-  ¬-ite-elim-else : ∀ {f₁ f₂ f₃} → Holds (notᶠ (iteᶠ f₁ f₂ f₃)) → Holds (orᶠ f₁ (notᶠ f₃))
-  ¬-ite-elim-else {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
-    where
-    lem : eval f₁ ∨ not (eval f₃) ≡ true
-    lem with eval f₁
-    ... | true  = refl
-    ... | false = p
+-- LFSC: not_ite_elim_3
+¬-ite-elim-both : ∀ {f₁ f₂ f₃} → Holds (notᶠ (iteᶠ f₁ f₂ f₃)) → Holds (orᶠ (notᶠ f₂) (notᶠ f₃))
+¬-ite-elim-both {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
+  where
+  lem : not (eval f₂) ∨ not (eval f₃) ≡ true
+  lem with eval f₁
+  ... | true  rewrite p = refl
+  ... | false rewrite p = ∨-zeroʳ (not (eval f₂))
 
-  -- LFSC: not_ite_elim_3
-  ¬-ite-elim-both : ∀ {f₁ f₂ f₃} → Holds (notᶠ (iteᶠ f₁ f₂ f₃)) → Holds (orᶠ (notᶠ f₂) (notᶠ f₃))
-  ¬-ite-elim-both {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
-    where
-    lem : not (eval f₂) ∨ not (eval f₃) ≡ true
-    lem with eval f₁
-    ... | true  rewrite p = refl
-    ... | false rewrite p = ∨-zeroʳ (not (eval f₂))
+-- LFSC: ast
+assum : ∀ {v f c} → Atom v f → (Holds f → Holdsᶜ c) → Holdsᶜ (neg v ∷ c)
+assum {v} {f} {c} (atom .v .f a) fn = holdsᶜ (neg v ∷ c) lem₂
+  where
+  lem₁ : ∀ {f c} → (Holds f → Holdsᶜ c) → eval f ≡ true → evalᶜ c ≡ true
+  lem₁ {f} {c} fn e with holdsᶜ _ h ← fn (holds f e) = h
 
-  -- LFSC: ast
-  assum : ∀ {v f c} → Atom v f → (Holds f → Holdsᶜ c) → Holdsᶜ (neg v ∷ c)
-  assum {v} {f} {c} (atom .v .f a) fn = holdsᶜ (neg v ∷ c) lem₂
+  lem₂ : not (evalᵛ v) ∨ evalᶜ c ≡ true
+  lem₂ with eval f | inspect eval f
+  lem₂ | true  | [ eq ] rewrite a = lem₁ fn eq
+  lem₂ | false | _      rewrite a = refl
 
-    where
+-- LFSC: asf
+assum-¬ : ∀ {v f c} → Atom v f → (Holds (notᶠ f) → Holdsᶜ c) → Holdsᶜ (pos v ∷ c)
+assum-¬ {v} {f} {c} (atom .v .f a) fn = holdsᶜ (pos v ∷ c) lem₂
+  where
+  lem₁ : ∀ {f c} → (Holds (notᶠ f) → Holdsᶜ c) → eval f ≡ false → evalᶜ c ≡ true
+  lem₁ {f} {c} fn e with holdsᶜ _ h ← fn (holds (notᶠ f) (f⇒not-t e)) = h
 
-    lem₁ : ∀ {f c} → (Holds f → Holdsᶜ c) → eval f ≡ true → evalᶜ c ≡ true
-    lem₁ {f} {c} fn e with holdsᶜ _ h ← fn (holds f e) = h
-
-    lem₂ : not (evalᵛ env v) ∨ evalᶜ c ≡ true
-    lem₂ with eval f | inspect eval f
-    lem₂ | true  | [ eq ] rewrite a = lem₁ fn eq
-    lem₂ | false | _      rewrite a = refl
-
-  -- LFSC: asf
-  assum-¬ : ∀ {v f c} → Atom v f → (Holds (notᶠ f) → Holdsᶜ c) → Holdsᶜ (pos v ∷ c)
-  assum-¬ {v} {f} {c} (atom .v .f a) fn = holdsᶜ (pos v ∷ c) lem₂
-
-    where
-
-    lem₁ : ∀ {f c} → (Holds (notᶠ f) → Holdsᶜ c) → eval f ≡ false → evalᶜ c ≡ true
-    lem₁ {f} {c} fn e with holdsᶜ _ h ← fn (holds (notᶠ f) (f⇒not-t e)) = h
-
-    lem₂ : evalᵛ env v ∨ evalᶜ c ≡ true
-    lem₂ with eval f | inspect eval f
-    lem₂ | true  | _      rewrite a = refl
-    lem₂ | false | [ eq ] rewrite a = lem₁ fn eq
+  lem₂ : evalᵛ v ∨ evalᶜ c ≡ true
+  lem₂ with eval f | inspect eval f
+  lem₂ | true  | _      rewrite a = refl
+  lem₂ | false | [ eq ] rewrite a = lem₁ fn eq
 
 -- XXX - need bv_asf, bv_ast?
 -- XXX - need mpz_sub, mp_ispos, mpz_eq, mpz_lt, mpz_lte?

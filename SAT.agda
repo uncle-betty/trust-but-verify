@@ -1,6 +1,4 @@
-open import Env using (Env)
-
-module SAT (env : Env) where
+module SAT where
 
 open import Agda.Primitive using (Level) renaming (lzero to 0ℓ ; lsuc to +ℓ)
 
@@ -160,29 +158,31 @@ t⇒not-f {true}  _  = refl
 t⇒not-f {false} ()
 
 propᵛ : Var → Set
-propᵛ = T ∘ (evalᵛ env)
+propᵛ = T ∘ evalᵛ
 
-proveᵛ : ∀ {v} → evalᵛ env v ≡ true → propᵛ v
+proveᵛ : ∀ {v} → evalᵛ v ≡ true → propᵛ v
 proveᵛ p = subst id (sym (cong T p)) tt
 
-proveᵛ-¬ : ∀ {v} → evalᵛ env v ≡ false → ¬ propᵛ v
+proveᵛ-¬ : ∀ {v} → evalᵛ v ≡ false → ¬ propᵛ v
 proveᵛ-¬ p r = subst id (cong T p) r
 
 evalˡ : Lit → Bool
-evalˡ (pos v′) = evalᵛ env v′
-evalˡ (neg v′) = not (evalᵛ env v′)
+evalˡ (pos v′) = evalᵛ v′
+evalˡ (neg v′) = not (evalᵛ v′)
 
 propˡ : Lit → Set
 propˡ (pos v′) = propᵛ v′
 propˡ (neg v′) = ¬ (propᵛ v′)
 
+-- XXX - without {v′} the constraint solver fails
 proveˡ : ∀ {l} → evalˡ l ≡ true → propˡ l
-proveˡ {pos v′} p = proveᵛ p
-proveˡ {neg v′} p = proveᵛ-¬ (not-t⇒f p)
+proveˡ {pos v′} p = proveᵛ {v′} p
+proveˡ {neg v′} p = proveᵛ-¬ {v′} (not-t⇒f p)
 
+-- XXX - without {v′} the constraint solver fails
 proveˡ-¬ : ∀ {l} → evalˡ l ≡ false → ¬ propˡ l
-proveˡ-¬ {pos v′} p r = contradiction r (proveᵛ-¬ p)
-proveˡ-¬ {neg v′} p r = contradiction (proveᵛ (not-f⇒t p)) r
+proveˡ-¬ {pos v′} p r = contradiction r (proveᵛ-¬ {v′} p)
+proveˡ-¬ {neg v′} p r = contradiction (proveᵛ {v′} (not-f⇒t p)) r
 
 evalᶜ : Clause → Bool
 evalᶜ []        = false
@@ -334,7 +334,7 @@ resolve-r (holds⁺ c₁ p₁) (holds⁺ c₂ p₂) v = holds⁺ _ (help {c₁} 
   help : ∀ {c₁ c₂} → eval⁺ c₁ empty ≡ true → eval⁺ c₂ empty ≡ true → (v : Var) →
     eval⁺ (inj₂ (join (inj₂ (skip (pos v)) ∷ c₁)) ∷ inj₂ (skip (neg v)) ∷ c₂) empty ≡ true
 
-  help {c₁} {c₂} h₁ h₂ v with evalᵛ env v | inspect (evalᵛ env) v
+  help {c₁} {c₂} h₁ h₂ v with evalᵛ v | inspect evalᵛ v
   ... | true | [ eq ]
     rewrite resolve {pos v} {c₂} {empty} eq h₂
     = ∨-zeroʳ (eval⁺ c₁ (insert (pos v) empty))
@@ -352,7 +352,7 @@ resolve-q (holds⁺ c₁ p₁) (holds⁺ c₂ p₂) v = holds⁺ _ (help {c₁} 
   help : ∀ {c₁ c₂} → eval⁺ c₁ empty ≡ true → eval⁺ c₂ empty ≡ true → (v : Var) →
     eval⁺ (inj₂ (join (inj₂ (skip (neg v)) ∷ c₁)) ∷ inj₂ (skip (pos v)) ∷ c₂) empty ≡ true
 
-  help {c₁} {c₂} h₁ h₂ v with evalᵛ env v | inspect (evalᵛ env) v
+  help {c₁} {c₂} h₁ h₂ v with evalᵛ v | inspect evalᵛ v
   ... | true  | [ eq ] rewrite resolve {pos v} {c₁} {empty} eq h₁ = refl
 
   ... | false | [ eq ]
@@ -463,11 +463,11 @@ dedup-add-f-≡ {l} {l′ ∷ ls} {s} h₁ h₂ | no p rewrite set-other l′ l 
 
 dedup-sound : ∀ {c} → evalᶜ c ≡ true → evalᶜ (dedup c empty) ≡ true
 
-dedup-sound {pos v′ ∷ ls} h with evalᵛ env v′ | inspect (evalᵛ env) v′
+dedup-sound {pos v′ ∷ ls} h with evalᵛ v′ | inspect evalᵛ v′
 ... | true  | _      = refl
 ... | false | [ eq ] = dedup-add-f-≡ {pos v′} {ls} {empty} eq (dedup-sound {ls} h)
 
-dedup-sound {neg v′ ∷ ls} h with evalᵛ env v′ | inspect (evalᵛ env) v′
+dedup-sound {neg v′ ∷ ls} h with evalᵛ v′ | inspect evalᵛ v′
 ... | true  | [ eq ] = dedup-add-f-≡ {neg v′} {ls} {empty} (t⇒not-f eq) (dedup-sound {ls} h)
 ... | false | _      = refl
 

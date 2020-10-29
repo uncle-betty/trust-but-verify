@@ -47,8 +47,6 @@ import Base
 
 record Context : Set where
   field
-    ctxEnvName : Name
-    -- ^ name of the variable to hold the evaluation environment
     ctxInput   : List Char
     -- ^ input LFSC proof
     ctxVarNo   : ℕ
@@ -62,8 +60,6 @@ record Context : Set where
     -- ^ instead replace occurrences of let-bound variables with their bound terms
     ctxSig     : List Term
     -- ^ types of the top-level λ-bindings (use: proof term's type signature)
-    ctxEnv     : Map <-STO-ℕ Term
-    -- ^ variables and the associated atoms (use: implement decl_atom, evaluation environment)
 
 open Context
 open RawMonad (⊎-monadT 0ℓ (StateMonad Context)) using (return ; _>>=_ ; _>>_ ; _<$>_)
@@ -143,16 +139,14 @@ expectClose = nextToken >>= λ where
   Close → return tt
   token → fail↑ $ "LFSC - expected ')', found '" ∷ showToken token ∷ "'" ∷ []
 
-newContext : Name → String → Context
-newContext envName input = record {
-    ctxEnvName = envName ;
+newContext : String → Context
+newContext input = record {
     ctxInput   = toListₛ input ;
     ctxVarNo   = 0 ;
     ctxDepth   = 0 ;
     ctxArgs    = empty <-STO-Str ;
     ctxLets    = empty <-STO-Str ;
-    ctxSig     = [] ;
-    ctxEnv     = empty <-STO-ℕ
+    ctxSig     = []
   }
 
 localContext : {S : Set} → StateEither S → StateEither S
@@ -162,8 +156,7 @@ localContext toWrap = do
   modify↑ λ ctx → record saved {
       ctxInput = ctxInput ctx ;
       ctxVarNo = ctxVarNo ctx ;
-      ctxSig   = ctxSig ctx ;
-      ctxEnv   = ctxEnv ctx
+      ctxSig   = ctxSig ctx
     }
   return result
 
@@ -179,7 +172,6 @@ unknownArg = arg (arg-info hidden relevant) unknown
 module _ where
   open SAT
   open SMT
-  open SMT.Rules
 
   pass₁ : ∀ {ℓ} → {S : Set ℓ} → S → S
   pass₁ x = x
@@ -192,129 +184,121 @@ module _ where
   constMap : Map <-STO-Str Directions
   constMap =
     -- pass the last argument through
-    noEnv "check" (def (quote pass₁) , 0 , 1) $
-    noEnv ":"     (def (quote pass₂) , 0 , 2) $
-    noEnv "term"  (def (quote pass₁) , 0 , 1) $
+    entry "check" (def (quote pass₁) , 0 , 1) $
+    entry ":"     (def (quote pass₂) , 0 , 2) $
+    entry "term"  (def (quote pass₁) , 0 , 1) $
 
     -- built-ins
-    noEnv "Bool" (def (quote Data.Bool.Bool)     , 0 , 0) $
-    noEnv "cln"  (con (quote Data.List.List.[])  , 0 , 0) $
-    noEnv "clc"  (con (quote Data.List.List._∷_) , 0 , 2) $
-    noEnv "cnfn" (con (quote Data.List.List.[])  , 0 , 0) $
-    noEnv "cnfc" (con (quote Data.List.List._∷_) , 0 , 2) $
+    entry "Bool" (def (quote Data.Bool.Bool)     , 0 , 0) $
+    entry "cln"  (con (quote Data.List.List.[])  , 0 , 0) $
+    entry "clc"  (con (quote Data.List.List._∷_) , 0 , 2) $
+    entry "cnfn" (con (quote Data.List.List.[])  , 0 , 0) $
+    entry "cnfc" (con (quote Data.List.List._∷_) , 0 , 2) $
 
     -- SAT - with leading (visible!) env argument
     -- bool, tt, ff, var, lit
-    withEnv "pos"             (con (quote pos)        , 0 , 1) $
-    withEnv "neg"             (con (quote neg)        , 0 , 1) $
+    entry "pos"             (con (quote pos)        , 0 , 1) $
+    entry "neg"             (con (quote neg)        , 0 , 1) $
     -- lit_flip, clause, concat_cl, clr, clause_append, simplify_clause
-    withEnv "holds"           (def (quote Holdsᶜ)     , 0 , 1) $
-    withEnv "R"               (def (quote resolve-r⁺) , 2 , 3) $
-    withEnv "Q"               (def (quote resolve-q⁺) , 2 , 3) $
-    withEnv "satlem_simplify" (def (quote mp⁺)        , 3 , 2) $
-    withEnv "satlem"          (def (quote mpᶜ)        , 2 , 2) $
+    entry "holds"           (def (quote Holdsᶜ)     , 0 , 1) $
+    entry "R"               (def (quote resolve-r⁺) , 2 , 3) $
+    entry "Q"               (def (quote resolve-q⁺) , 2 , 3) $
+    entry "satlem_simplify" (def (quote mp⁺)        , 3 , 2) $
+    entry "satlem"          (def (quote mpᶜ)        , 2 , 2) $
     -- clause_dedup, cnf_holds, cnfn_proof, cnfc_proof
 
     -- SMT - no leading env argument
     -- formula
-    noEnv "th_holds" (def (quote Holds)  , 0 , 1) $
-    noEnv "true"     (con (quote trueᶠ)  , 0 , 0) $
-    noEnv "false"    (con (quote falseᶠ) , 0 , 0) $
+    entry "th_holds" (def (quote Holds)  , 0 , 1) $
+    entry "true"     (con (quote trueᶠ)  , 0 , 0) $
+    entry "false"    (con (quote falseᶠ) , 0 , 0) $
     -- formula_op1, formula_op2, formula_op3
-    noEnv "not"      (con (quote notᶠ)   , 0 , 1) $
-    noEnv "and"      (con (quote andᶠ)   , 0 , 2) $
-    noEnv "or"       (con (quote orᶠ)    , 0 , 2) $
-    noEnv "impl"     (con (quote implᶠ)  , 0 , 2) $
-    noEnv "iff"      (con (quote iffᶠ)   , 0 , 2) $
-    noEnv "xor"      (con (quote xorᶠ)   , 0 , 2) $
-    noEnv "ifte"     (con (quote iteᶠ)   , 0 , 3) $
+    entry "not"      (con (quote notᶠ)   , 0 , 1) $
+    entry "and"      (con (quote andᶠ)   , 0 , 2) $
+    entry "or"       (con (quote orᶠ)    , 0 , 2) $
+    entry "impl"     (con (quote implᶠ)  , 0 , 2) $
+    entry "iff"      (con (quote iffᶠ)   , 0 , 2) $
+    entry "xor"      (con (quote xorᶠ)   , 0 , 2) $
+    entry "ifte"     (con (quote iteᶠ)   , 0 , 3) $
     -- sort, term
-    noEnv "="        (con (quote equᶠ)   , 1 , 2) $
+    entry "="        (con (quote equᶠ)   , 1 , 2) $
     -- ite, let, flet, Bool
-    noEnv "p_app"    (con (quote appᵇ)   , 0 , 1) $
+    entry "p_app"    (con (quote appᵇ)   , 0 , 1) $
     -- t_true, t_false
 
     -- SMT.Rules - with leading (visible!) env argument
-    withEnv "t_t_neq_f"         (def (quote t≢fᵇ)            , 0 , 0) $
-    withEnv "pred_eq_t"         (def (quote x⇒x≡tᵇ)          , 1 , 2) $
-    withEnv "pred_eq_f"         (def (quote ¬x⇒x≡fᵇ)         , 1 , 2) $
+    entry "t_t_neq_f"         (def (quote t≢fᵇ)            , 0 , 0) $
+    entry "pred_eq_t"         (def (quote x⇒x≡tᵇ)          , 1 , 2) $
+    entry "pred_eq_f"         (def (quote ¬x⇒x≡fᵇ)         , 1 , 2) $
     -- f_to_b
-    withEnv "true_preds_equal"  (def (quote x⇒y⇒x≡yᵇ)        , 2 , 2) $
-    withEnv "false_preds_equal" (def (quote ¬x⇒¬y⇒x≡yᵇ)      , 2 , 2) $
-    withEnv "pred_refl_pos"     (def (quote x⇒x≡xᵇ)          , 1 , 1) $
-    withEnv "pred_refl_neg"     (def (quote ¬x⇒x≡xᵇ)         , 1 , 1) $
-    withEnv "pred_not_iff_f"    (def (quote ¬f⇔x⇒t≡xᵇ)       , 1 , 1) $
-    withEnv "pred_not_iff_f_2"  (def (quote ¬x⇔f⇒x≡tᵇ)       , 1 , 1) $
-    withEnv "pred_not_iff_t"    (def (quote ¬t⇔x⇒f≡xᵇ)       , 1 , 1) $
-    withEnv "pred_not_iff_t_2"  (def (quote ¬x⇔t⇒x≡fᵇ)       , 1 , 1) $
-    withEnv "pred_iff_f"        (def (quote f⇔x⇒f≡xᵇ)        , 1 , 1) $
-    withEnv "pred_iff_f_2"      (def (quote x⇔f⇒x≡fᵇ)        , 1 , 1) $
-    withEnv "pred_iff_t"        (def (quote t⇔x⇒t≡xᵇ)        , 1 , 1) $
-    withEnv "pred_iff_t_2"      (def (quote x⇔t⇒x≡tᵇ)        , 1 , 1) $
+    entry "true_preds_equal"  (def (quote x⇒y⇒x≡yᵇ)        , 2 , 2) $
+    entry "false_preds_equal" (def (quote ¬x⇒¬y⇒x≡yᵇ)      , 2 , 2) $
+    entry "pred_refl_pos"     (def (quote x⇒x≡xᵇ)          , 1 , 1) $
+    entry "pred_refl_neg"     (def (quote ¬x⇒x≡xᵇ)         , 1 , 1) $
+    entry "pred_not_iff_f"    (def (quote ¬f⇔x⇒t≡xᵇ)       , 1 , 1) $
+    entry "pred_not_iff_f_2"  (def (quote ¬x⇔f⇒x≡tᵇ)       , 1 , 1) $
+    entry "pred_not_iff_t"    (def (quote ¬t⇔x⇒f≡xᵇ)       , 1 , 1) $
+    entry "pred_not_iff_t_2"  (def (quote ¬x⇔t⇒x≡fᵇ)       , 1 , 1) $
+    entry "pred_iff_f"        (def (quote f⇔x⇒f≡xᵇ)        , 1 , 1) $
+    entry "pred_iff_f_2"      (def (quote x⇔f⇒x≡fᵇ)        , 1 , 1) $
+    entry "pred_iff_t"        (def (quote t⇔x⇒t≡xᵇ)        , 1 , 1) $
+    entry "pred_iff_t_2"      (def (quote x⇔t⇒x≡tᵇ)        , 1 , 1) $
     -- atom, bvatom, decl_atom, decl_bvatom
-    withEnv "clausify_form"     (def (quote clausi)          , 2 , 2) $
-    withEnv "clausify_form_not" (def (quote clausi-¬)        , 2 , 2) $
-    withEnv "clausify_false"    (def (quote clausi-f)        , 0 , 1) $
-    withEnv "th_let_pf"         (def (quote mp)              , 1 , 2) $
-    withEnv "iff_symm"          (def (quote x⇔x)             , 0 , 1) $
-    withEnv "contra"            (def (quote contra)          , 1 , 2) $
-    withEnv "truth"             (def (quote truth)           , 0 , 0) $
-    withEnv "not_not_intro"     (def (quote ¬-¬-intro)       , 1 , 1) $
-    withEnv "not_not_elim"      (def (quote ¬-¬-elim)        , 1 , 1) $
-    withEnv "or_elim_1"         (def (quote ∨-elimˡ)         , 2 , 2) $
-    withEnv "or_elim_2"         (def (quote ∨-elimʳ)         , 2 , 2) $
-    withEnv "not_or_elim"       (def (quote de-morgan₁)      , 2 , 1) $
-    withEnv "and_elim_1"        (def (quote ∧-elimʳ)         , 2 , 1) $
-    withEnv "and_elim_2"        (def (quote ∧-elimˡ)         , 2 , 1) $
-    withEnv "not_and_elim"      (def (quote de-morgan₂)      , 2 , 1) $
-    withEnv "impl_intro"        (def (quote ⇒-intro)         , 2 , 1) $
-    withEnv "impl_elim"         (def (quote ⇒-elim)          , 2 , 1) $
-    withEnv "not_impl_elim"     (def (quote ¬-⇒-elim)        , 2 , 1) $
-    withEnv "iff_elim_1"        (def (quote ⇔-elim-⇒)        , 2 , 1) $
-    withEnv "iff_elim_2"        (def (quote ⇔-elim-⇐)        , 2 , 1) $
-    withEnv "not_iff_elim"      (def (quote ¬-⇔-elim)        , 2 , 1) $
-    withEnv "xor_elim_1"        (def (quote xor-elim-¬)      , 2 , 1) $
-    withEnv "xor_elim_2"        (def (quote xor-elim)        , 2 , 1) $
-    withEnv "not_xor_elim"      (def (quote ¬-xor-elim)      , 2 , 1) $
-    withEnv "ite_elim_1"        (def (quote ite-elim-then)   , 3 , 1) $
-    withEnv "ite_elim_2"        (def (quote ite-elim-else)   , 3 , 1) $
-    withEnv "ite_elim_3"        (def (quote ite-elim-both)   , 3 , 1) $
-    withEnv "not_ite_elim_1"    (def (quote ¬-ite-elim-then) , 3 , 1) $
-    withEnv "not_ite_elim_2"    (def (quote ¬-ite-elim-else) , 3 , 1) $
-    withEnv "not_ite_elim_3"    (def (quote ¬-ite-elim-both) , 3 , 1) $
-    withEnv "ast"               (def (quote assum)           , 3 , 2) $
-    withEnv "asf"               (def (quote assum-¬)         , 3 , 2) $
+    entry "clausify_form"     (def (quote clausi)          , 2 , 2) $
+    entry "clausify_form_not" (def (quote clausi-¬)        , 2 , 2) $
+    entry "clausify_false"    (def (quote clausi-f)        , 0 , 1) $
+    entry "th_let_pf"         (def (quote mp)              , 1 , 2) $
+    entry "iff_symm"          (def (quote x⇔x)             , 0 , 1) $
+    entry "contra"            (def (quote contra)          , 1 , 2) $
+    entry "truth"             (def (quote truth)           , 0 , 0) $
+    entry "not_not_intro"     (def (quote ¬-¬-intro)       , 1 , 1) $
+    entry "not_not_elim"      (def (quote ¬-¬-elim)        , 1 , 1) $
+    entry "or_elim_1"         (def (quote ∨-elimˡ)         , 2 , 2) $
+    entry "or_elim_2"         (def (quote ∨-elimʳ)         , 2 , 2) $
+    entry "not_or_elim"       (def (quote de-morgan₁)      , 2 , 1) $
+    entry "and_elim_1"        (def (quote ∧-elimʳ)         , 2 , 1) $
+    entry "and_elim_2"        (def (quote ∧-elimˡ)         , 2 , 1) $
+    entry "not_and_elim"      (def (quote de-morgan₂)      , 2 , 1) $
+    entry "impl_intro"        (def (quote ⇒-intro)         , 2 , 1) $
+    entry "impl_elim"         (def (quote ⇒-elim)          , 2 , 1) $
+    entry "not_impl_elim"     (def (quote ¬-⇒-elim)        , 2 , 1) $
+    entry "iff_elim_1"        (def (quote ⇔-elim-⇒)        , 2 , 1) $
+    entry "iff_elim_2"        (def (quote ⇔-elim-⇐)        , 2 , 1) $
+    entry "not_iff_elim"      (def (quote ¬-⇔-elim)        , 2 , 1) $
+    entry "xor_elim_1"        (def (quote xor-elim-¬)      , 2 , 1) $
+    entry "xor_elim_2"        (def (quote xor-elim)        , 2 , 1) $
+    entry "not_xor_elim"      (def (quote ¬-xor-elim)      , 2 , 1) $
+    entry "ite_elim_1"        (def (quote ite-elim-then)   , 3 , 1) $
+    entry "ite_elim_2"        (def (quote ite-elim-else)   , 3 , 1) $
+    entry "ite_elim_3"        (def (quote ite-elim-both)   , 3 , 1) $
+    entry "not_ite_elim_1"    (def (quote ¬-ite-elim-then) , 3 , 1) $
+    entry "not_ite_elim_2"    (def (quote ¬-ite-elim-else) , 3 , 1) $
+    entry "not_ite_elim_3"    (def (quote ¬-ite-elim-both) , 3 , 1) $
+    entry "ast"               (def (quote assum)           , 3 , 2) $
+    entry "asf"               (def (quote assum-¬)         , 3 , 2) $
     -- bv_asf, bv_ast, mpz_sub, mp_ispos, mpz_eq, mpz_lt, mpz_lte
 
     -- Base
     -- arrow, apply
-    noEnv "trust"     (def (quote Base.trust-f)  , 0 , 0) $
-    noEnv "trust_f"   (def (quote Base.trust)    , 0 , 1) $
-    noEnv "refl"      (def (quote Base.refl)     , 1 , 1) $
-    noEnv "symm"      (def (quote Base.sym)      , 3 , 1) $
-    noEnv "trans"     (def (quote Base.trans)    , 4 , 2) $
-    noEnv "negsymm"   (def (quote Base.¬-sym)    , 3 , 1) $
-    noEnv "negtrans1" (def (quote Base.¬-trans₁) , 4 , 2) $
-    noEnv "negtrans2" (def (quote Base.¬-trans₂) , 4 , 2) $
+    entry "trust"     (def (quote Base.trust-f)  , 0 , 0) $
+    entry "trust_f"   (def (quote Base.trust)    , 0 , 1) $
+    entry "refl"      (def (quote Base.refl)     , 1 , 1) $
+    entry "symm"      (def (quote Base.sym)      , 3 , 1) $
+    entry "trans"     (def (quote Base.trans)    , 4 , 2) $
+    entry "negsymm"   (def (quote Base.¬-sym)    , 3 , 1) $
+    entry "negtrans1" (def (quote Base.¬-trans₁) , 4 , 2) $
+    entry "negtrans2" (def (quote Base.¬-trans₂) , 4 , 2) $
     -- XXX - figure out cong
 
     end
 
     where
-    withEnv : String → Directions → Map <-STO-Str Directions → Map <-STO-Str Directions
-    withEnv = insert <-STO-Str
-
-    noEnv : String → Directions → Map <-STO-Str Directions → Map <-STO-Str Directions
-    noEnv s (f , n₁ , n₂) m = insert <-STO-Str s (f ∘ drop 1 , n₁ , n₂) m
+    entry : String → Directions → Map <-STO-Str Directions → Map <-STO-Str Directions
+    entry = insert <-STO-Str
 
     end = empty <-STO-Str
 
 termFromExpr′ : StateEither Term
-
-visibleEnvArg : StateEither (Arg Term)
-visibleEnvArg = do
-  ctx ← get↑
-  return $ visibleArg (def (ctxEnvName ctx) [])
 
 constLookup : String → StateEither $ (List (Arg Term) → Term) × ℕ × ℕ
 constLookup ident = case lookup <-STO-Str ident constMap of λ where
@@ -329,19 +313,18 @@ termFromArg ident depth args =
 termFromLet : String → Map <-STO-Str Term → Maybe Term
 termFromLet ident lets = lookup <-STO-Str ident lets
 
-termFromConst : String → Arg Term → Maybe Term
-termFromConst ident envArg = case lookup <-STO-Str ident constMap of λ where
-  (just (cons , zero , zero)) → just (cons [ envArg ])
+termFromConst : String → Maybe Term
+termFromConst ident = case lookup <-STO-Str ident constMap of λ where
+  (just (cons , zero , zero)) → just (cons [])
   _                           → nothing
 
 termFromIdent : String → StateEither Term
 termFromIdent ident = do
   ctx ← get↑
-  envArg ← visibleEnvArg
   mt ← return $
     (termFromArg ident (ctxDepth ctx) (ctxArgs ctx) <∣>
     termFromLet ident (ctxLets ctx)) <∣>
-    termFromConst ident envArg
+    termFromConst ident
   case mt of λ where
     nothing  → fail↑ $ "LFSC - unknown identifier '" ∷ ident ∷ "'" ∷ []
     (just t) → return t
@@ -452,13 +435,15 @@ handleDeclAtom = do
   prepareContext t₁ v a = modify↑ λ ctx →
     let
       varNo = suc (ctxVarNo ctx)
-      -- var <varNo>
+      -- var <varNo> (eval t₁)
       vVal = con (quote Env.Var.var) $
         visibleArg (lit (nat varNo)) ∷
+        visibleArg (def (quote SMT.eval) $
+          visibleArg t₁ ∷
+          []) ∷
         []
-      -- atom {<envName>} (var <varNo>) t₁ (refl {_} {_} {_})
-      aVal = con (quote SMT.Rules.Atom.atom) $
-        hiddenArg (def (ctxEnvName ctx) []) ∷
+      -- atom (var <varNo>) t₁ (refl {_} {_} {_})
+      aVal = con (quote SMT.Atom.atom) $
         visibleArg vVal ∷
         visibleArg t₁ ∷
         visibleArg (con (quote Relation.Binary.PropositionalEquality._≡_.refl) $
@@ -473,17 +458,15 @@ handleDeclAtom = do
           ctxLets =
             insert <-STO-Str v vVal $
             insert <-STO-Str a aVal $
-            ctxLets ctx ;
-          ctxEnv = insert <-STO-ℕ varNo t₁ $ ctxEnv ctx
+            ctxLets ctx
         }
 
 handleAppl : String → StateEither Term
 handleAppl ident = do
   (cons , nImpls , nArgs) ← constLookup ident
   skipImplicits nImpls
-  envArg ← visibleEnvArg
   args ← buildTerms [] nArgs
-  return $ cons $ envArg ∷ mapₗ (arg $ arg-info visible relevant) args
+  return $ cons $ mapₗ (arg $ arg-info visible relevant) args
 
 handleBody : StateEither Term
 handleBody = do
@@ -506,31 +489,11 @@ termFromExpr = do
   expectOpen
   termFromExpr′
 
-buildEnv : List (ℕ × Term) → StateEither Term
-buildEnv [] =
-  -- ε {0ℓ} {Bool}
-  return $ def (quote Env.ε) $
-    hiddenArg (def (quote Level.zero) []) ∷
-    hiddenArg (def (quote Data.Bool.Bool) []) ∷
-    []
-buildEnv ((n , t) ∷ nts) =
-  -- assignᵛ (var <n>) (eval <t>) <rest>
-  (λ # → def (quote Env.assignᵛ) $
-    visibleArg (con (quote Env.Var.var) $
-      visibleArg (lit (nat n)) ∷
-      []) ∷
-    visibleArg (def (quote SMT.eval) $
-      visibleArg t ∷
-      []) ∷
-    visibleArg # ∷
-    []) <$> buildEnv nts
-
 buildType : List Term → StateEither Term
 buildType [] = do
   ctx ← get↑
   -- Holdsᶜ <envName> []
   return $ def (quote SAT.Holdsᶜ) $
-    visibleArg (def (ctxEnvName ctx) []) ∷
     visibleArg (con (quote Data.List.List.[]) $
       hiddenArg unknown ∷
       hiddenArg unknown ∷
@@ -541,46 +504,35 @@ buildType (t ∷ ts) =
   (λ # → pi (visibleArg t) (abs "_" #)) <$>
   buildType ts
 
-buildProof : StateEither (Term × Term × Term)
+buildProof : StateEither (Term × Term)
 buildProof = do
   term ← termFromExpr
   ctx ← get↑
   type ← buildType $ reverse $ ctxSig ctx
-  env ← buildEnv $ toListₘ <-STO-ℕ $ ctxEnv ctx
-  return $ env , type , term
+  return $ type , term
 
-convertProof : Name → String → Sumₗ 0ℓ (Term × Term × Term)
-convertProof envName input = runState buildProof $ newContext envName input
+convertProof : String → Sumₗ 0ℓ (Term × Term)
+convertProof input = runState buildProof $ newContext input
 
 macro
-  proofEnv : List String ⊎ (Term × Term × Term) → Term → TC ⊤
-  proofEnv (inj₁ ss)          _    = typeError $ mapₗ strErr ss
-  proofEnv (inj₂ (t , _ , _)) hole = unify hole t
+  proofType : List String ⊎ (Term × Term) → Term → TC ⊤
+  proofType (inj₁ ss)      _    = typeError $ mapₗ strErr ss
+  proofType (inj₂ (t , _)) hole = unify hole t
 
-  proofType : List String ⊎ (Term × Term × Term) → Term → TC ⊤
-  proofType (inj₁ ss)          _    = typeError $ mapₗ strErr ss
-  proofType (inj₂ (_ , t , _)) hole = unify hole t
-
-  proofTerm : List String ⊎ (Term × Term × Term) → Term → TC ⊤
-  proofTerm (inj₁ ss)          _    = typeError $ mapₗ strErr ss
-  proofTerm (inj₂ (_ , _ , t)) hole = unify hole t
+  proofTerm : List String ⊎ (Term × Term) → Term → TC ⊤
+  proofTerm (inj₁ ss)      _    = typeError $ mapₗ strErr ss
+  proofTerm (inj₂ (_ , t)) hole = unify hole t
 
 module Test where
   open Env renaming (var to var′)
   open SAT
   open SMT
-  open SMT.Rules
-
-  testEnv : Env
 
   test : String → List String ⊎ Term
-  test s = runState termFromExpr $ newContext (quote testEnv) s
+  test s = runState termFromExpr $ newContext s
 
   test′ : String → List String ⊎ (Term × Term)
-  test′ s = ⊎-map₂ (λ { (_ , type , term) → type , term }) $ convertProof (quote testEnv) s
-
-  test″ : String → List String ⊎ (Term × Term × Term)
-  test″ = convertProof (quote testEnv)
+  test′ = convertProof
 
   expTest₁ : test "(true)" ≡ (inj₂ $ quoteTerm trueᶠ)
   expTest₁ = refl
@@ -599,12 +551,12 @@ module Test where
 
   lamTest₄ : {S : Set} →
     test′ "(% .x (th_holds true) .x)" ≡
-    (inj₂ $ (quoteTerm (Holds trueᶠ → Holdsᶜ testEnv []) , quoteTerm λ (x : S) → x))
+    (inj₂ $ (quoteTerm (Holds trueᶠ → Holdsᶜ []) , quoteTerm λ (x : S) → x))
   lamTest₄ = refl
 
   lamTest₅ : {S : Set} →
     test′ "(% .x (th_holds true) (% .y (th_holds false) .x))" ≡
-    (inj₂ $ quoteTerm (Holds trueᶠ → Holds falseᶠ → Holdsᶜ testEnv []) ,
+    (inj₂ $ quoteTerm (Holds trueᶠ → Holds falseᶠ → Holdsᶜ []) ,
       quoteTerm λ (x : S) (y : S) → x)
   lamTest₅ = refl
 
@@ -623,24 +575,15 @@ module Test where
   mixTest₂ : test "(\\ .x (@ a true (and .x a)))" ≡ (inj₂ $ quoteTerm λ x → andᶠ x trueᶠ)
   mixTest₂ = refl
 
-  atomTest₁ : test "(decl_atom true (\\ .x (\\ .y .x)))" ≡ (inj₂ $ quoteTerm (var′ 1))
+  atomTest₁ : test "(decl_atom true (\\ .x (\\ .y .x)))" ≡ (inj₂ $ quoteTerm (var′ 1 (eval trueᶠ)))
   atomTest₁ = refl
 
-  testEnv =
-    assignᵛ (var′ 1) (eval trueᶠ) $
-    ε
-
-  {- XXX - test broken; {testEnv} is quoted into {_} for some reason
   atomTest₂ :
     test "(decl_atom true (\\ .x (\\ .y .y)))" ≡
-    (inj₂ $ quoteTerm (atom {testEnv} (var′ 1) trueᶠ refl))
-  atomTest₂ = {!!}
-  -}
+    (inj₂ $ quoteTerm (atom (var′ 1 (eval trueᶠ)) trueᶠ refl))
+  atomTest₂ = refl
 
   atomTest₃ : {S : Set} →
-    test″ "(% .x (th_holds true) (decl_atom true (\\ .y (\\ .z .y))))" ≡
-    (inj₂ $
-      (quoteTerm (assignᵛ (var′ 1) (eval trueᶠ) ε) ,
-      quoteTerm (Holds trueᶠ → Holdsᶜ testEnv []) ,
-      quoteTerm (λ (x : S) → var′ 1)))
+    test′ "(% .x (th_holds true) (decl_atom true (\\ .y (\\ .z .y))))" ≡
+    (inj₂ $ quoteTerm (Holds trueᶠ → Holdsᶜ []) , quoteTerm (λ (x : S) → var′ 1 (eval trueᶠ)))
   atomTest₃ = refl

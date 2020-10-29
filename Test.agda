@@ -1,6 +1,6 @@
 module Test where
 
-open import Data.Bool using (Bool ; false ; T)
+open import Data.Bool using (Bool ; true ; false ; T)
 open import Data.List using ([] ; _∷_)
 open import Data.Product using (_×_)
 open import Data.String using (String)
@@ -9,56 +9,37 @@ open import Function.Equivalence using (_⇔_)
 open import Relation.Binary.PropositionalEquality using (_≡_) renaming (refl to reflₚ)
 
 open import Env
+open import SAT
 open import SMT
 open import Base
 open import Convert
 
-import SAT
+instance
+  _ = from⁺
+  _ = fromᶜ
 
 module SAT₁ where
-  open SAT ε
-
-  proof : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
-    Holdsᶜ (neg (var 0) ∷ pos (var 1) ∷ []) → Holdsᶜ []
+  proof : Holdsᶜ (pos (var 0 false) ∷ []) → Holdsᶜ (neg (var 1 true) ∷ []) →
+    Holdsᶜ (neg (var 0 false) ∷ pos (var 1 true) ∷ []) → Holdsᶜ []
 
   proof a b r =
     let a⁺ = expand a in
     let b⁺ = expand b in
     let r⁺ = expand r in
-    let x₁ = resolve-r a⁺ r⁺ (var 0) in
-    let x₂ = resolve-q b⁺ x₁ (var 1) in
+    let x₁ = resolve-r a⁺ r⁺ (var 0 false) in
+    let x₂ = resolve-q b⁺ x₁ (var 1 true) in
     mp⁺ x₂ id
 
 module SAT₂ where
-  open SAT ε
-
-  instance
-    _ = from⁺
-    _ = fromᶜ
-
-  proof : Holdsᶜ (pos (var 0) ∷ []) → Holdsᶜ (neg (var 1) ∷ []) →
-    Holdsᶜ (neg (var 0) ∷ pos (var 1) ∷ []) → Holdsᶜ []
+  proof : Holdsᶜ (pos (var 0 false) ∷ []) → Holdsᶜ (neg (var 1 true) ∷ []) →
+    Holdsᶜ (neg (var 0 false) ∷ pos (var 1 true) ∷ []) → Holdsᶜ []
 
   proof a b r =
-    let x₁ = resolve-r⁺ a r  (var 0) in
-    let x₂ = resolve-q⁺ b x₁ (var 1) in
+    let x₁ = resolve-r⁺ a r  (var 0 false) in
+    let x₂ = resolve-q⁺ b x₁ (var 1 true) in
     mp⁺ x₂ id
 
 module SMT₁ where
-  -- populated by decl_atom
-  env : Env
-
-  open SAT env
-  open SMT.Rules env
-
-  instance
-    _ = from⁺
-    _ = fromᶜ
-
-  env =
-    assignᵛ (var 1) (eval falseᶠ) $
-    ε
-
   proof =
     λ (x : Bool) →
     λ (as₁ : Holds trueᶠ) →
@@ -66,8 +47,8 @@ module SMT₁ where
     let let₁ = falseᶠ in
     mp (trust falseᶠ) λ pa₁ →
     mp (trust (notᶠ let₁)) λ pa₂ →
-    -- instead of decl_atom, must match env above
-    let v₁ = var 1 in
+    -- instead of decl_atom
+    let v₁ = var 1 (eval let₁) in
     let a₁ = atom v₁ let₁ reflₚ in
     mpᶜ (assum a₁ λ l₃ → clausi-f (contra l₃ pa₂)) λ pb₁ →
     mpᶜ (assum-¬ a₁ λ l₂ → clausi-f (contra pa₁ l₂)) λ pb₄ →
@@ -99,25 +80,13 @@ module SMT₂ where
     (satlem _ _ (asf _ _ _ .a1 (\\ .l2 (clausify_false (contra _ .PA248 .l2)))) (\\ .pb4
     (satlem_simplify _ _ _ (R _ _ .pb4 .pb1 .v1) (\\ empty empty)))))))))))))))))))"
 
-  env : Env
-
-  open SAT env
-  open SMT.Rules env
-
-  instance
-    _ = from⁺
-    _ = fromᶜ
-
-  -- convert the LFSC proof into an environment, a type, and a term of this type.
-  envTypeTerm = convertProof (quote env) input
-
-  -- unquote the environment
-  env = proofEnv envTypeTerm
+  -- convert the LFSC proof into a type and a term of this type.
+  typeTerm = convertProof input
 
   -- unquote the type
-  proof : proofType envTypeTerm
+  proof : proofType typeTerm
   -- unquote the term
-  proof = proofTerm envTypeTerm
+  proof = proofTerm typeTerm
 
   -- now we can do the same things we did in SMT₁
   proof-prop : (x : Bool) → T x ⇔ T x

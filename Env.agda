@@ -2,7 +2,7 @@ module Env where
 
 open import Agda.Primitive using () renaming (lzero to 0ℓ)
 
-open import Data.Bool using (Bool ; false)
+open import Data.Bool using (Bool ; true ; false)
 open import Data.Maybe using (just ; nothing)
 open import Data.Nat using (ℕ ; _<_)
 open import Data.Nat.Properties using (<-trans) renaming (<-strictTotalOrder to <-STO)
@@ -18,27 +18,41 @@ open import Relation.Binary.PropositionalEquality.Properties using (isEquivalenc
 
 -- LFSC: var
 data Var : Set where
-  var : ℕ → Var
+  var : ℕ → Bool → Var
 
 ℕ-comp = ISTO.compare (STO.isStrictTotalOrder <-STO)
 
 data Var-< : Var → Var → Set where
-  v<v : ∀ {m n} → m < n → Var-< (var m) (var n)
+  f<t : ∀ {m n}         → Var-< (var m false) (var n true)
+  f<f : ∀ {m n} → m < n → Var-< (var m false) (var n false)
+  t<t : ∀ {m n} → m < n → Var-< (var m true)  (var n true)
 
 var-<-trans : Transitive Var-<
-var-<-trans {var m} {var n} {var o} (v<v m<n) (v<v n<o) = v<v (<-trans m<n n<o)
+var-<-trans {var _ false} {var _ true}  {var _ true}  f<t      _        = f<t
+var-<-trans {var _ false} {var _ false} {var _ true}  (f<f _)  f<t      = f<t
+var-<-trans {var _ false} {var _ false} {var _ false} (f<f p₁) (f<f p₂) = f<f (<-trans p₁ p₂)
+var-<-trans {var _ true}  {var _ true}  {var _ true}  (t<t p₁) (t<t p₂) = t<t (<-trans p₁ p₂)
 
-var-≡ : ∀ {m n} → var m ≡ var n → m ≡ n
+var-≡ : ∀ {m n a b} → var m a ≡ var n b → m ≡ n
 var-≡ refl = refl
 
-var-< : ∀ {m n} → Var-< (var m) (var n) → m < n
-var-< (v<v p) = p
+var-< : ∀ {m n b} → Var-< (var m b) (var n b) → m < n
+var-< (t<t p) = p
+var-< (f<f p) = p
 
 var-comp : Trichotomous _≡_ Var-<
-var-comp (var m) (var n) with ℕ-comp m n
-... | tri< p₁ p₂ p₃ = tri< (v<v p₁)     (p₂ ∘ var-≡)  (p₃ ∘ var-<)
-... | tri≈ p₁ p₂ p₃ = tri≈ (p₁ ∘ var-<) (cong var p₂) (p₃ ∘ var-<)
-... | tri> p₁ p₂ p₃ = tri> (p₁ ∘ var-<) (p₂ ∘ var-≡)  (v<v p₃)
+var-comp (var m true) (var n true) with ℕ-comp m n
+... | tri< p₁ p₂ p₃ = tri< (t<t p₁)     (p₂ ∘ var-≡)                 (p₃ ∘ var-<)
+... | tri≈ p₁ p₂ p₃ = tri≈ (p₁ ∘ var-<) (cong (λ # → var # true) p₂) (p₃ ∘ var-<)
+... | tri> p₁ p₂ p₃ = tri> (p₁ ∘ var-<) (p₂ ∘ var-≡)                 (t<t p₃)
+
+var-comp (var m true)  (var n false) = tri> (λ ()) (λ ()) f<t
+var-comp (var m false) (var n true)  = tri< f<t    (λ ()) (λ ())
+
+var-comp (var m false) (var n false) with ℕ-comp m n
+... | tri< p₁ p₂ p₃ = tri< (f<f p₁)     (p₂ ∘ var-≡)                  (p₃ ∘ var-<)
+... | tri≈ p₁ p₂ p₃ = tri≈ (p₁ ∘ var-<) (cong (λ # → var # false) p₂) (p₃ ∘ var-<)
+... | tri> p₁ p₂ p₃ = tri> (p₁ ∘ var-<) (p₂ ∘ var-≡)                  (f<f p₃)
 
 var-<-ISTO : ISTO _≡_ Var-<
 var-<-ISTO = record { isEquivalence = isEquivalence ; trans = var-<-trans ; compare = var-comp }
@@ -46,24 +60,5 @@ var-<-ISTO = record { isEquivalence = isEquivalence ; trans = var-<-trans ; comp
 var-<-STO : STO 0ℓ 0ℓ 0ℓ
 var-<-STO = record { Carrier = Var ; _≈_ = _≡_ ; _<_ = Var-< ; isStrictTotalOrder = var-<-ISTO }
 
-import Data.Tree.AVL.Map var-<-STO as M using (Map ; empty ; insert ; lookup)
-import Data.Tree.AVL.Indexed var-<-STO as IM using (const)
-import AVL var-<-STO (IM.const Bool) id (λ _ _ → refl) as AM using (avl-insed ; avl-other)
-
-map-insed : ∀ v (b : Bool) m → (M.lookup v (M.insert v b m)) ≡ just b
-map-insed v b m = AM.avl-insed v b m
-
-map-other : ∀ v′ v (b : Bool) m → v′ ≢ v → (M.lookup v′ (M.insert v b m)) ≡ M.lookup v′ m
-map-other v′ v b m = AM.avl-other v′ v b m
-
-Env = M.Map Bool
-
-ε = M.empty
-
-evalᵛ : Env → Var → Bool
-evalᵛ env v with M.lookup v env
-... | just b  = b
-... | nothing = false
-
-assignᵛ : Var → Bool → Env → Env
-assignᵛ v b env = M.insert v b env
+evalᵛ : Var → Bool
+evalᵛ (var _ b) = b
