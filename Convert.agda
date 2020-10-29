@@ -29,7 +29,7 @@ open import Reflection
   using (
     Name ; Arg ; Term ;
     def ; con ; var ; pi ; lam ; lit ; nat ; abs ;
-    arg ; arg-info ; visible ; hidden ; relevant ; unknown ;
+    arg ; arg-info ; visible ; hidden ; relevant ;
     TC ;
     unify ;
     typeError ; strErr
@@ -54,9 +54,6 @@ record Context : Set where
     -- ^ current nesting depth of λ-abstractions (use: de Bruin indexes)
     ctxArgs    : Map <-STO-Str ℕ
     -- ^ λ-bound variables and the nesting depth of their λ-abstractions (use: de Bruin indexes)
-    ctxLets    : Map <-STO-Str Term
-    -- ^ let-bound variables and their bound terms; we don't transliterate let-bindings, but
-    -- ^ instead replace occurrences of let-bound variables with their bound terms
     ctxSig     : List Term
     -- ^ types of the top-level λ-bindings (use: proof term's type signature)
 
@@ -144,7 +141,6 @@ newContext input = record {
     ctxVarNo   = 0 ;
     ctxDepth   = 0 ;
     ctxArgs    = empty <-STO-Str ;
-    ctxLets    = empty <-STO-Str ;
     ctxSig     = []
   }
 
@@ -164,9 +160,6 @@ visibleArg = arg (arg-info visible relevant)
 
 hiddenArg : Term → Arg Term
 hiddenArg = arg (arg-info hidden relevant)
-
-unknownArg : Arg Term
-unknownArg = arg (arg-info hidden relevant) unknown
 
 module _ where
   open SAT
@@ -320,10 +313,7 @@ termFromConst ident = case lookup <-STO-Str ident constMap of λ where
 termFromIdent : String → StateEither Term
 termFromIdent ident = do
   ctx ← get↑
-  mt ← return $
-    (termFromArg ident (ctxDepth ctx) (ctxArgs ctx) <∣>
-    termFromLet ident (ctxLets ctx)) <∣>
-    termFromConst ident
+  mt ← return $ termFromArg ident (ctxDepth ctx) (ctxArgs ctx) <∣> termFromConst ident
   case mt of λ where
     nothing  → fail↑ $ "LFSC - unknown identifier '" ∷ ident ∷ "'" ∷ []
     (just t) → return t
@@ -384,35 +374,29 @@ handleTypedLambda = do
     buildOneTerm
   return $ lam visible $ abs (stripDot name) t₂
 
-handleLambda : StateEither Term
-handleLambda = do
-  name ← getVariable
-  t ← localContext $ do
-    modify↑ λ ctx →
-      let depth = suc (ctxDepth ctx) in
-        record ctx {
+lambdaContext : String → StateEither (Lift 0ℓ ⊤)
+lambdaContext name =
+  modify↑ λ ctx →
+    let depth = suc (ctxDepth ctx) in
+      record ctx {
           ctxDepth = depth ;
           ctxArgs  = insert <-STO-Str name depth $ ctxArgs ctx
         }
-    buildOneTerm
+
+finishLambda : String → StateEither Term
+finishLambda name = do
+  t ← localContext $ lambdaContext name >> buildOneTerm
   return $ lam visible $ abs (stripDot name) t
+
+handleLambda : StateEither Term
+handleLambda = getVariable >>= finishLambda
 
 handleLet : StateEither Term
 handleLet = do
   name ← getVariable
-  t₁ ← localContext $ do
-    -- don't allow access to previous arguments; at lookup time we might be at a more deeply
-    -- nested level within t₂, i.e, their de Bruijn indices might be outdated
-    modify↑ λ ctx → record ctx {
-        ctxArgs = empty <-STO-Str
-      }
-    buildOneTerm
-  t₂ ← localContext $ do
-    modify↑ λ ctx → record ctx {
-        ctxLets = insert <-STO-Str name t₁ $ ctxLets ctx
-      }
-    buildOneTerm
-  return t₂
+  t₁ ← buildOneTerm
+  t₂ ← finishLambda name
+  return $ def (quote _$_) $ visibleArg t₂ ∷ visibleArg t₁ ∷ []
 
 handleDeclAtom : StateEither Term
 handleDeclAtom = do
@@ -421,7 +405,7 @@ handleDeclAtom = do
   v ← getVariable
   expectOpen ; expectLambda
   a ← getVariable
-  t₂ ← localContext $ prepareContext t₁ v a >> buildOneTerm
+  t₂ ← buildDeclAtom t₁ v a
   expectClose ; expectClose
   return t₂
 
@@ -430,35 +414,36 @@ handleDeclAtom = do
     (Ident "\\") → return tt
     token        → fail↑ $ "LFSC - expected '\\', found '" ∷ showToken token ∷ "'" ∷ []
 
-  prepareContext : Term → String → String → StateEither (Lift 0ℓ ⊤)
-  prepareContext t₁ v a = modify↑ λ ctx →
+  buildDeclAtom : Term → String → String → StateEither Term
+  buildDeclAtom t₁ v a = do
+    modify↑ λ ctx → record ctx {
+        ctxVarNo = suc $ ctxVarNo ctx
+      }
+    t₂ ← localContext $
+      lambdaContext "tbv-tmp" >> lambdaContext v >> lambdaContext a >>
+      buildOneTerm
+    ctx ← get↑
     let
-      varNo = suc (ctxVarNo ctx)
-      -- var <varNo> (eval t₁)
+      -- var <ctxVarNo ctx> (eval tbv-tmp)
       vVal = con (quote SAT.Var.var) $
-        visibleArg (lit (nat varNo)) ∷
+        visibleArg (lit (nat (ctxVarNo ctx))) ∷
         visibleArg (def (quote SMT.eval) $
-          visibleArg t₁ ∷
+          visibleArg (var 0 []) ∷
           []) ∷
         []
-      -- atom (var <varNo>) t₁ (refl {_} {_} {_})
+      -- atom v tbv-tmp (refl {_} {_} {_})
       aVal = con (quote SMT.Atom.atom) $
-        visibleArg vVal ∷
-        visibleArg t₁ ∷
-        visibleArg (con (quote Relation.Binary.PropositionalEquality._≡_.refl) $
-          hiddenArg unknown ∷
-          hiddenArg unknown ∷
-          hiddenArg unknown ∷
-          []) ∷
+        visibleArg (var 0 []) ∷
+        visibleArg (var 1 []) ∷
+        visibleArg (con (quote Relation.Binary.PropositionalEquality._≡_.refl) []) ∷
         []
-    in
-      record ctx {
-          ctxVarNo = varNo ;
-          ctxLets =
-            insert <-STO-Str v vVal $
-            insert <-STO-Str a aVal $
-            ctxLets ctx
-        }
+      aLambda = lam visible $ abs (stripDot a) t₂
+      aAppl = def (quote _$_) $ visibleArg aLambda ∷ visibleArg aVal ∷ []
+      vLambda = lam visible $ abs (stripDot v) aAppl
+      vAppl = def (quote _$_) $ visibleArg vLambda ∷ visibleArg vVal ∷ []
+      tLambda = lam visible $ abs "tbv-tmp" vAppl
+      tAppl = def (quote _$_) $ visibleArg tLambda ∷ visibleArg t₁ ∷ []
+    return tAppl
 
 handleAppl : String → StateEither Term
 handleAppl ident = do
@@ -493,10 +478,7 @@ buildType [] = do
   ctx ← get↑
   -- Holdsᶜ <envName> []
   return $ def (quote SAT.Holdsᶜ) $
-    visibleArg (con (quote Data.List.List.[]) $
-      hiddenArg unknown ∷
-      hiddenArg unknown ∷
-      []) ∷
+    visibleArg (con (quote Data.List.List.[]) []) ∷
     []
 buildType (t ∷ ts) =
   -- t → <rest>
@@ -521,67 +503,3 @@ macro
   proofTerm : List String ⊎ (Term × Term) → Term → TC ⊤
   proofTerm (inj₁ ss)      _    = typeError $ mapₗ strErr ss
   proofTerm (inj₂ (_ , t)) hole = unify hole t
-
-module Test where
-  open SAT renaming (var to var′)
-  open SMT
-
-  test : String → List String ⊎ Term
-  test s = runState termFromExpr $ newContext s
-
-  test′ : String → List String ⊎ (Term × Term)
-  test′ = convertProof
-
-  expTest₁ : test "(true)" ≡ (inj₂ $ quoteTerm trueᶠ)
-  expTest₁ = refl
-
-  expTest₂ : test "(and true false)" ≡ (inj₂ $ quoteTerm (andᶠ trueᶠ falseᶠ))
-  expTest₂ = refl
-
-  lamTest₁ : {S : Set} → test "(\\ .x .x)" ≡ (inj₂ $ quoteTerm λ (x : S) → x)
-  lamTest₁ = refl
-
-  lamTest₂ : {S : Set} → test "(\\ .x (\\ .y .x))" ≡ (inj₂ $ quoteTerm λ (x : S) (y : S) → x)
-  lamTest₂ = refl
-
-  lamTest₃ : test "(% .x (th_holds true) .x)" ≡ (inj₂ $ quoteTerm λ (x : Bool) → x)
-  lamTest₃ = refl
-
-  lamTest₄ : {S : Set} →
-    test′ "(% .x (th_holds true) .x)" ≡
-    (inj₂ $ (quoteTerm (Holds trueᶠ → Holdsᶜ []) , quoteTerm λ (x : S) → x))
-  lamTest₄ = refl
-
-  lamTest₅ : {S : Set} →
-    test′ "(% .x (th_holds true) (% .y (th_holds false) .x))" ≡
-    (inj₂ $ quoteTerm (Holds trueᶠ → Holds falseᶠ → Holdsᶜ []) ,
-      quoteTerm λ (x : S) (y : S) → x)
-  lamTest₅ = refl
-
-  letTest₁ : test "(\\ .x (@ a .x))" ≡ inj₁ _
-  letTest₁ = refl
-
-  letTest₂ : test "(@ a true a)" ≡ (inj₂ $ quoteTerm trueᶠ)
-  letTest₂ = refl
-
-  letTest₃ : test "(@ a true (@ b false a))" ≡ (inj₂ $ quoteTerm trueᶠ)
-  letTest₃ = refl
-
-  mixTest₁ : test "(@ a true (\\ .x (and .x a)))" ≡ (inj₂ $ quoteTerm λ x → andᶠ x trueᶠ)
-  mixTest₁ = refl
-
-  mixTest₂ : test "(\\ .x (@ a true (and .x a)))" ≡ (inj₂ $ quoteTerm λ x → andᶠ x trueᶠ)
-  mixTest₂ = refl
-
-  atomTest₁ : test "(decl_atom true (\\ .x (\\ .y .x)))" ≡ (inj₂ $ quoteTerm (var′ 1 (eval trueᶠ)))
-  atomTest₁ = refl
-
-  atomTest₂ :
-    test "(decl_atom true (\\ .x (\\ .y .y)))" ≡
-    (inj₂ $ quoteTerm (atom (var′ 1 (eval trueᶠ)) trueᶠ refl))
-  atomTest₂ = refl
-
-  atomTest₃ : {S : Set} →
-    test′ "(% .x (th_holds true) (decl_atom true (\\ .y (\\ .z .y))))" ≡
-    (inj₂ $ quoteTerm (Holds trueᶠ → Holdsᶜ []) , quoteTerm (λ (x : S) → var′ 1 (eval trueᶠ)))
-  atomTest₃ = refl

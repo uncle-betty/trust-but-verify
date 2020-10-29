@@ -47,8 +47,9 @@ module SMT₁ where
     mp (trust falseᶠ) λ pa₁ →
     mp (trust (notᶠ let₁)) λ pa₂ →
     -- instead of decl_atom
-    let v₁ = var 1 (eval let₁) in
-    let a₁ = atom v₁ let₁ reflₚ in
+    let tbv-tmp = let₁ in
+    let v₁ = var 1 (eval tbv-tmp) in
+    let a₁ = atom v₁ tbv-tmp reflₚ in
     mpᶜ (assum a₁ λ l₃ → clausi-f (contra l₃ pa₂)) λ pb₁ →
     mpᶜ (assum-¬ a₁ λ l₂ → clausi-f (contra pa₁ l₂)) λ pb₄ →
     mp⁺ (resolve-r⁺ pb₄ pb₁ v₁) id
@@ -80,13 +81,34 @@ module SMT₂ where
     (satlem_simplify _ _ _ (R _ _ .pb4 .pb1 .v1) (\\ empty empty)))))))))))))))))))"
 
   -- convert the LFSC proof into a type and a term of this type.
-  typeTerm = convertProof input
+  typeTerm = convertProof "(check (decl_atom true (\\ .foo1 (\\ .foo2 true))))" -- input
+
+  open import Agda.Builtin.Reflection
+
+  test₁ =
+    let f = trueᶠ in
+    let v = var 1 (eval f) in
+    let a = atom v f reflₚ in
+    trueᶠ
+
+  data Wrap : Set where
+    wrap : (v : Var) → evalᵛ v ≡
+
+  test₂ =
+    (λ (f : Formula) →
+      (λ (v : Var) →
+        (λ (a : Atom v f) → trueᶠ) $
+          atom v f {!!}) $
+      var 1 (eval f)) $
+    trueᶠ
 
   -- unquote the type
-  proof : proofType typeTerm
+  -- proof : proofType typeTerm
   -- unquote the term
-  proof = proofTerm typeTerm
+  -- proof = proofTerm typeTerm
 
+{-
   -- now we can do the same things we did in SMT₁
   proof-prop : (x : Bool) → T x ⇔ T x
   proof-prop x = final (iffᶠ (appᵇ x) (appᵇ x)) (proof x (holds trueᶠ reflₚ))
+-}
