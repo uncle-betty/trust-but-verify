@@ -204,23 +204,23 @@ module _ where
     noEnv "cnfc" (con (quote Data.List.List._∷_) , 0 , 2) $
 
     -- SAT - with leading (visible!) env argument
-      -- bool, tt, ff, var, lit
+    -- bool, tt, ff, var, lit
     withEnv "pos"             (con (quote pos)        , 0 , 1) $
     withEnv "neg"             (con (quote neg)        , 0 , 1) $
-      -- lit_flip, clause, concat_cl, clr, clause_append, simplify_clause
+    -- lit_flip, clause, concat_cl, clr, clause_append, simplify_clause
     withEnv "holds"           (def (quote Holdsᶜ)     , 0 , 1) $
     withEnv "R"               (def (quote resolve-r⁺) , 2 , 3) $
     withEnv "Q"               (def (quote resolve-q⁺) , 2 , 3) $
     withEnv "satlem_simplify" (def (quote mp⁺)        , 3 , 2) $
     withEnv "satlem"          (def (quote mpᶜ)        , 2 , 2) $
-      -- clause_dedup, cnf_holds, cnfn_proof, cnfc_proof
+    -- clause_dedup, cnf_holds, cnfn_proof, cnfc_proof
 
     -- SMT - no leading env argument
-      -- formula
+    -- formula
     noEnv "th_holds" (def (quote Holds)  , 0 , 1) $
     noEnv "true"     (con (quote trueᶠ)  , 0 , 0) $
     noEnv "false"    (con (quote falseᶠ) , 0 , 0) $
-      -- formula_op1, formula_op2, formula_op3
+    -- formula_op1, formula_op2, formula_op3
     noEnv "not"      (con (quote notᶠ)   , 0 , 1) $
     noEnv "and"      (con (quote andᶠ)   , 0 , 2) $
     noEnv "or"       (con (quote orᶠ)    , 0 , 2) $
@@ -228,17 +228,17 @@ module _ where
     noEnv "iff"      (con (quote iffᶠ)   , 0 , 2) $
     noEnv "xor"      (con (quote xorᶠ)   , 0 , 2) $
     noEnv "ifte"     (con (quote iteᶠ)   , 0 , 3) $
-      -- sort, term
+    -- sort, term
     noEnv "="        (con (quote equᶠ)   , 1 , 2) $
-      -- ite, let, flet, Bool
+    -- ite, let, flet, Bool
     noEnv "p_app"    (con (quote appᵇ)   , 0 , 1) $
-      -- t_true, t_false
+    -- t_true, t_false
 
     -- SMT.Rules - with leading (visible!) env argument
     withEnv "t_t_neq_f"         (def (quote t≢fᵇ)            , 0 , 0) $
     withEnv "pred_eq_t"         (def (quote x⇒x≡tᵇ)          , 1 , 2) $
     withEnv "pred_eq_f"         (def (quote ¬x⇒x≡fᵇ)         , 1 , 2) $
-      -- f_to_b
+    -- f_to_b
     withEnv "true_preds_equal"  (def (quote x⇒y⇒x≡yᵇ)        , 2 , 2) $
     withEnv "false_preds_equal" (def (quote ¬x⇒¬y⇒x≡yᵇ)      , 2 , 2) $
     withEnv "pred_refl_pos"     (def (quote x⇒x≡xᵇ)          , 1 , 1) $
@@ -251,7 +251,7 @@ module _ where
     withEnv "pred_iff_f_2"      (def (quote x⇔f⇒x≡fᵇ)        , 1 , 1) $
     withEnv "pred_iff_t"        (def (quote t⇔x⇒t≡xᵇ)        , 1 , 1) $
     withEnv "pred_iff_t_2"      (def (quote x⇔t⇒x≡tᵇ)        , 1 , 1) $
-      -- atom, bvatom, decl_atom, decl_bvatom
+    -- atom, bvatom, decl_atom, decl_bvatom
     withEnv "clausify_form"     (def (quote clausi)          , 2 , 2) $
     withEnv "clausify_form_not" (def (quote clausi-¬)        , 2 , 2) $
     withEnv "clausify_false"    (def (quote clausi-f)        , 0 , 1) $
@@ -284,10 +284,10 @@ module _ where
     withEnv "not_ite_elim_3"    (def (quote ¬-ite-elim-both) , 3 , 1) $
     withEnv "ast"               (def (quote assum)           , 3 , 2) $
     withEnv "asf"               (def (quote assum-¬)         , 3 , 2) $
-      -- bv_asf, bv_ast, mpz_sub, mp_ispos, mpz_eq, mpz_lt, mpz_lte
+    -- bv_asf, bv_ast, mpz_sub, mp_ispos, mpz_eq, mpz_lt, mpz_lte
 
     -- Base
-      -- arrow, apply
+    -- arrow, apply
     noEnv "trust"     (def (quote Base.trust-f)  , 0 , 0) $
     noEnv "trust_f"   (def (quote Base.trust)    , 0 , 1) $
     noEnv "refl"      (def (quote Base.refl)     , 1 , 1) $
@@ -296,6 +296,7 @@ module _ where
     noEnv "negsymm"   (def (quote Base.¬-sym)    , 3 , 1) $
     noEnv "negtrans1" (def (quote Base.¬-trans₁) , 4 , 2) $
     noEnv "negtrans2" (def (quote Base.¬-trans₂) , 4 , 2) $
+    -- XXX - figure out cong
 
     end
 
