@@ -65,29 +65,33 @@ var-<-trans {var _ true}  {var _ true}  {var _ true}  (t<t p₁) (t<t p₂) = t<
 var-≡ : ∀ {m n a b} → var m a ≡ var n b → m ≡ n
 var-≡ refl = refl
 
+var-≡′ : ∀ {m n b} → m ≡ n → var m b ≡ var n b
+var-≡′ refl = refl
+
 var-< : ∀ {m n b} → Var-< (var m b) (var n b) → m < n
 var-< (t<t p) = p
 var-< (f<f p) = p
 
 var-comp : Trichotomous _≡_ Var-<
 var-comp (var m true) (var n true) with ℕ-comp m n
-... | tri< p₁ p₂ p₃ = tri< (t<t p₁)     (p₂ ∘ var-≡)                 (p₃ ∘ var-<)
-... | tri≈ p₁ p₂ p₃ = tri≈ (p₁ ∘ var-<) (cong (λ # → var # true) p₂) (p₃ ∘ var-<)
-... | tri> p₁ p₂ p₃ = tri> (p₁ ∘ var-<) (p₂ ∘ var-≡)                 (t<t p₃)
+... | tri< p₁ p₂ p₃ = tri< (t<t p₁)     (p₂ ∘ var-≡) (p₃ ∘ var-<)
+... | tri≈ p₁ p₂ p₃ = tri≈ (p₁ ∘ var-<) (var-≡′ p₂)  (p₃ ∘ var-<)
+... | tri> p₁ p₂ p₃ = tri> (p₁ ∘ var-<) (p₂ ∘ var-≡) (t<t p₃)
 
 var-comp (var m true)  (var n false) = tri> (λ ()) (λ ()) f<t
 var-comp (var m false) (var n true)  = tri< f<t    (λ ()) (λ ())
 
 var-comp (var m false) (var n false) with ℕ-comp m n
-... | tri< p₁ p₂ p₃ = tri< (f<f p₁)     (p₂ ∘ var-≡)                  (p₃ ∘ var-<)
-... | tri≈ p₁ p₂ p₃ = tri≈ (p₁ ∘ var-<) (cong (λ # → var # false) p₂) (p₃ ∘ var-<)
-... | tri> p₁ p₂ p₃ = tri> (p₁ ∘ var-<) (p₂ ∘ var-≡)                  (f<f p₃)
+... | tri< p₁ p₂ p₃ = tri< (f<f p₁)     (p₂ ∘ var-≡) (p₃ ∘ var-<)
+... | tri≈ p₁ p₂ p₃ = tri≈ (p₁ ∘ var-<) (var-≡′ p₂)  (p₃ ∘ var-<)
+... | tri> p₁ p₂ p₃ = tri> (p₁ ∘ var-<) (p₂ ∘ var-≡) (f<f p₃)
 
 var-<-ISTO : ISTO _≡_ Var-<
 var-<-ISTO = record { isEquivalence = isEquivalence ; trans = var-<-trans ; compare = var-comp }
 
 var-<-STO : STO 0ℓ 0ℓ 0ℓ
 var-<-STO = record { Carrier = Var ; _≈_ = _≡_ ; _<_ = Var-< ; isStrictTotalOrder = var-<-ISTO }
+
 data Lit-< : Lit → Lit → Set where
   n<p : ∀ {x y} →             Lit-< (neg x) (pos y)
   n<n : ∀ {x y} → Var-< x y → Lit-< (neg x) (neg y)
@@ -111,7 +115,6 @@ neg-< : ∀ {x y} → Lit-< (neg x) (neg y) → Var-< x y
 neg-< (n<n p) = p
 
 lit-comp : Trichotomous _≡_ Lit-<
-
 lit-comp (pos x) (pos y) with var-comp x y
 ... | tri< p₁ p₂   p₃ = tri< (p<p p₁)     (p₂ ∘ pos-≡) (p₃ ∘ pos-<)
 ... | tri≈ p₁ refl p₃ = tri≈ (p₁ ∘ pos-<) refl         (p₃ ∘ pos-<)
@@ -376,7 +379,6 @@ resolve-r : ∀ {c₁ c₂} → Holds⁺ c₁ → Holds⁺ c₂ → (v : Var) �
 resolve-r (holds⁺ c₁ p₁) (holds⁺ c₂ p₂) v = holds⁺ _ (help {c₁} {c₂} p₁ p₂ v)
 
   where
-
   help : ∀ {c₁ c₂} → eval⁺ c₁ empty ≡ true → eval⁺ c₂ empty ≡ true → (v : Var) →
     eval⁺ (inj₂ (join (inj₂ (skip (pos v)) ∷ c₁)) ∷ inj₂ (skip (neg v)) ∷ c₂) empty ≡ true
 
@@ -394,7 +396,6 @@ resolve-q : ∀ {c₁ c₂} → Holds⁺ c₁ → Holds⁺ c₂ → (v : Var) �
 resolve-q (holds⁺ c₁ p₁) (holds⁺ c₂ p₂) v = holds⁺ _ (help {c₁} {c₂} p₁ p₂ v)
 
   where
-
   help : ∀ {c₁ c₂} → eval⁺ c₁ empty ≡ true → eval⁺ c₂ empty ≡ true → (v : Var) →
     eval⁺ (inj₂ (join (inj₂ (skip (neg v)) ∷ c₁)) ∷ inj₂ (skip (pos v)) ∷ c₂) empty ≡ true
 
@@ -419,7 +420,6 @@ expand : ∀ {c} → Holdsᶜ c → Holds⁺ (compl c)
 expand (holdsᶜ c p) = holds⁺ _ (help {c} p)
 
   where
-
   help : ∀ {c} → evalᶜ c ≡ true → eval⁺ (compl c) empty ≡ true
   help {l′ ∷ ls} h with evalˡ l′
   ... | true  = refl

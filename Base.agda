@@ -44,7 +44,6 @@ trans : {{s : DS 0ℓ 0ℓ}} → {x₁ x₂ x₃ : DS.Carrier s} →
   Holds (equᶠ x₁ x₂) → Holds (equᶠ x₂ x₃) → Holds (equᶠ x₁ x₃)
 
 trans (holds (equᶠ x₁ x₂) _) (holds (equᶠ x₂ x₃) _) with DS._≟_ it x₁ x₂ | DS._≟_ it x₂ x₃
-
 ... | true because ofʸ p₁ | true because ofʸ p₂ =
   holds _ $ dec-true (DS._≟_ it x₁ x₃) (DS.trans it p₁ p₂)
 
@@ -53,7 +52,6 @@ trans (holds (equᶠ x₁ x₂) _) (holds (equᶠ x₂ x₃) _) with DS._≟_ it
   Holds (notᶠ (equᶠ x₁ x₂)) → Holds (notᶠ (equᶠ x₂ x₁))
 
 ¬-sym (holds (notᶠ (equᶠ x₁ x₂)) h) with DS._≟_ it x₁ x₂
-
 ... | false because ofⁿ p =
   let s′ = DS.setoid it in
   holds _ $ cong′ not $ dec-false (DS._≟_ it x₂ x₁) (≉-sym s′ p)
@@ -63,7 +61,6 @@ trans (holds (equᶠ x₁ x₂) _) (holds (equᶠ x₂ x₃) _) with DS._≟_ it
   Holds (notᶠ (equᶠ x₁ x₂)) → Holds (equᶠ x₂ x₃) → Holds (notᶠ (equᶠ x₁ x₃))
 
 ¬-trans₁ (holds (notᶠ (equᶠ x₁ x₂)) _) (holds (equᶠ x₂ x₃) _) with DS._≟_ it x₁ x₂ | DS._≟_ it x₂ x₃
-
 ... | false because ofⁿ p₁ | true because ofʸ p₂ =
   let s′ = DS.setoid it in
   holds _ $ cong′ not $ dec-false (DS._≟_ it x₁ x₃) (≉-respʳ s′ p₂ p₁)
@@ -73,7 +70,6 @@ trans (holds (equᶠ x₁ x₂) _) (holds (equᶠ x₂ x₃) _) with DS._≟_ it
   Holds (equᶠ x₁ x₂) → Holds (notᶠ (equᶠ x₂ x₃)) → Holds (notᶠ (equᶠ x₁ x₃))
 
 ¬-trans₂ (holds (equᶠ x₁ x₂) _) (holds (notᶠ (equᶠ x₂ x₃)) _) with DS._≟_ it x₁ x₂ | DS._≟_ it x₂ x₃
-
 ... | true because ofʸ p₁ | false because ofⁿ p₂ =
   let s′ = DS.setoid it in
   holds _ $ cong′ not $ dec-false (DS._≟_ it x₁ x₃) (≉-respˡ s′ (DS.sym it p₁) p₂)
