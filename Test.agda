@@ -58,12 +58,6 @@ module SMT₁ where
   proof-prop : (x : Bool) → T x ⇔ T x
   proof-prop x = final (iffᶠ (appᵇ x) (appᵇ x)) (proof x (holds trueᶠ reflₚ))
 
-  proof-bool : (x : Bool) → T (x ≡ᵇ x)
-  proof-bool x = final (boolˣ (iffᶠ (appᵇ x) (appᵇ x))) (proof x (holds trueᶠ reflₚ))
-
-  proof-equ : (x : Bool) → x ≡ x
-  proof-equ x = final (equˣ (appᵇ x) (appᵇ x)) (proof x (holds trueᶠ reflₚ))
-
 module SMT₂ where
   -- the LFSC proof output by CVC4; comments supported, but removed for brevity
   input : String
