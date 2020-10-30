@@ -25,15 +25,18 @@ open import Data.Unit using (⊤ ; tt)
 
 open import Function using (_$_ ; _∘_ ; _|>_ ; case_of_)
 
-open import Reflection
-  using (
-    Name ; Arg ; Term ;
-    def ; con ; var ; pi ; lam ; lit ; nat ; abs ;
-    arg ; arg-info ; visible ; hidden ; relevant ;
-    TC ;
-    unify ;
-    typeError ; strErr
-  )
+open import Reflection.Abstraction using (abs)
+open import Reflection.Argument using (Arg ; arg)
+open import Reflection.Argument.Information using (arg-info)
+open import Reflection.Argument.Relevance using (relevant)
+open import Reflection.Argument.Visibility using (visible ; hidden)
+open import Reflection.Literal using (nat)
+open import Reflection.Name using (Name)
+
+open import Reflection.Term
+  using (Term ; var ; con ; def ; lam ; pat-lam ; pi ; lit ; unknown ; clause)
+
+open import Reflection.TypeChecking.Monad using (TC ; unify ; typeError ; strErr)
 
 open import Relation.Binary.PropositionalEquality using (_≡_ ; _≢_ ; refl)
 open import Relation.Nullary using (Dec ; does ; _because_ ; ofʸ ; ofⁿ)
@@ -154,12 +157,6 @@ localContext toWrap = do
       ctxSig   = ctxSig ctx
     }
   return result
-
-visibleArg : Term → Arg Term
-visibleArg = arg (arg-info visible relevant)
-
-hiddenArg : Term → Arg Term
-hiddenArg = arg (arg-info hidden relevant)
 
 module _ where
   open SAT
@@ -359,20 +356,8 @@ getVariable = do
     where token → fail↑ $ "LFSC - expected variable, found '" ∷ showToken token ∷ "'" ∷ []
   return ident
 
-handleTypedLambda : StateEither Term
-handleTypedLambda = do
-  name ← getVariable
-  t₁ ← buildOneTerm
-  t₂ ← localContext $ do
-    modify↑ λ ctx →
-      let depth = suc (ctxDepth ctx) in
-        record ctx {
-          ctxDepth = depth ;
-          ctxArgs  = insert <-STO-Str name depth $ ctxArgs ctx ;
-          ctxSig   = t₁ ∷ ctxSig ctx
-        }
-    buildOneTerm
-  return $ lam visible $ abs (stripDot name) t₂
+visArg : {S : Set} → S → Arg S
+visArg = arg (arg-info visible relevant)
 
 lambdaContext : String → StateEither (Lift 0ℓ ⊤)
 lambdaContext name =
@@ -383,20 +368,43 @@ lambdaContext name =
           ctxArgs  = insert <-STO-Str name depth $ ctxArgs ctx
         }
 
-finishLambda : String → StateEither Term
-finishLambda name = do
-  t ← localContext $ lambdaContext name >> buildOneTerm
-  return $ lam visible $ abs (stripDot name) t
+handleTypedLambda : StateEither Term
+handleTypedLambda = do
+  name ← getVariable
+  t₁ ← buildOneTerm
+  t₂ ← localContext $ do
+    lambdaContext name
+    modify↑ λ ctx →
+        record ctx {
+          ctxSig   = t₁ ∷ ctxSig ctx
+        }
+    buildOneTerm
+  return $ lam visible $ abs (stripDot name) t₂
 
 handleLambda : StateEither Term
-handleLambda = getVariable >>= finishLambda
+handleLambda = do
+  name ← getVariable
+  t ← localContext $ do
+    lambdaContext name
+    buildOneTerm
+  return $ lam visible $ abs (stripDot name) t
 
 handleLet : StateEither Term
 handleLet = do
   name ← getVariable
   t₁ ← buildOneTerm
-  t₂ ← finishLambda name
-  return $ def (quote _$_) $ visibleArg t₂ ∷ visibleArg t₁ ∷ []
+  t₂ ← localContext $ do
+    lambdaContext name
+    buildOneTerm
+  return $ def (quote SMT.bind-let) $
+    visArg t₁ ∷
+    visArg (pat-lam [
+        clause
+          [ (name , visArg unknown) ]
+          (visArg (var 0)  ∷ visArg (con (quote refl) []) ∷ [])
+          t₂
+      ] []) ∷
+    []
 
 handleDeclAtom : StateEither Term
 handleDeclAtom = do
@@ -405,7 +413,7 @@ handleDeclAtom = do
   v ← getVariable
   expectOpen ; expectLambda
   a ← getVariable
-  t₂ ← buildDeclAtom t₁ v a
+  t₂ ← buildBindAtom t₁ v a
   expectClose ; expectClose
   return t₂
 
@@ -414,36 +422,26 @@ handleDeclAtom = do
     (Ident "\\") → return tt
     token        → fail↑ $ "LFSC - expected '\\', found '" ∷ showToken token ∷ "'" ∷ []
 
-  buildDeclAtom : Term → String → String → StateEither Term
-  buildDeclAtom t₁ v a = do
+  buildBindAtom : Term → String → String → StateEither Term
+  buildBindAtom t₁ v a = do
     modify↑ λ ctx → record ctx {
         ctxVarNo = suc $ ctxVarNo ctx
       }
-    t₂ ← localContext $
-      lambdaContext "tbv-tmp" >> lambdaContext v >> lambdaContext a >>
+    t₂ ← localContext $ do
+      lambdaContext v
+      lambdaContext a
       buildOneTerm
     ctx ← get↑
-    let
-      -- var <ctxVarNo ctx> (eval tbv-tmp)
-      vVal = con (quote SAT.Var.var) $
-        visibleArg (lit (nat (ctxVarNo ctx))) ∷
-        visibleArg (def (quote SMT.eval) $
-          visibleArg (var 0 []) ∷
-          []) ∷
-        []
-      -- atom v tbv-tmp (refl {_} {_} {_})
-      aVal = con (quote SMT.Atom.atom) $
-        visibleArg (var 0 []) ∷
-        visibleArg (var 1 []) ∷
-        visibleArg (con (quote Relation.Binary.PropositionalEquality._≡_.refl) []) ∷
-        []
-      aLambda = lam visible $ abs (stripDot a) t₂
-      aAppl = def (quote _$_) $ visibleArg aLambda ∷ visibleArg aVal ∷ []
-      vLambda = lam visible $ abs (stripDot v) aAppl
-      vAppl = def (quote _$_) $ visibleArg vLambda ∷ visibleArg vVal ∷ []
-      tLambda = lam visible $ abs "tbv-tmp" vAppl
-      tAppl = def (quote _$_) $ visibleArg tLambda ∷ visibleArg t₁ ∷ []
-    return tAppl
+    return $ def (quote SMT.bind-atom) $
+      visArg (lit (nat (ctxVarNo ctx))) ∷
+      visArg t₁ ∷
+      visArg (pat-lam [
+          clause
+            ((v , visArg unknown) ∷ (a , visArg unknown) ∷ [])
+            (visArg (var 1)  ∷ visArg (con (quote refl) []) ∷ visArg (var 0) ∷ [])
+            t₂
+        ] []) ∷
+      []
 
 handleAppl : String → StateEither Term
 handleAppl ident = do
@@ -478,11 +476,11 @@ buildType [] = do
   ctx ← get↑
   -- Holdsᶜ <envName> []
   return $ def (quote SAT.Holdsᶜ) $
-    visibleArg (con (quote Data.List.List.[]) []) ∷
+    visArg (con (quote Data.List.List.[]) []) ∷
     []
 buildType (t ∷ ts) =
   -- t → <rest>
-  (λ # → pi (visibleArg t) (abs "_" #)) <$>
+  (λ # → pi (visArg t) (abs "_" #)) <$>
   buildType ts
 
 buildProof : StateEither (Term × Term)

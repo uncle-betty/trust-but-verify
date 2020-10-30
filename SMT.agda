@@ -9,6 +9,7 @@ open import Data.Bool.Properties
 
 open import Data.Empty using (⊥)
 open import Data.List using ([] ; _∷_)
+open import Data.Nat using (ℕ)
 open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂)
 open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Unit using (⊤ ; tt)
@@ -26,7 +27,7 @@ open import Relation.Nullary using (¬_ ; Dec ; does ; _because_ ; ofʸ ; ofⁿ)
 open import Relation.Nullary.Negation using (contradiction)
 
 open import SAT
-  using (Var ; evalᵛ ; pos ; neg ; Holdsᶜ ; holdsᶜ ; holdsᶜ-[] ; evalᶜ ; not-t⇒f ; f⇒not-t)
+  using (Var ; var ; evalᵛ ; pos ; neg ; Holdsᶜ ; holdsᶜ ; holdsᶜ-[] ; evalᶜ ; not-t⇒f ; f⇒not-t)
 
 instance
   _ = bool-setoid
@@ -425,7 +426,17 @@ data Atom : Var → Formula → Set where
 
 -- XXX - need bvatom?
 
--- LFSC: decl_atom - replaced with concrete assignments to vᵢ and aᵢ
+-- LFSC: decl_atom
+-- type checker needs to know v, so that resolution can proceed, hence the v ≡ ... proof
+bind-atom : (n : ℕ) → (f : Formula) →
+  (fn : (v : Var) → v ≡ var n (eval f) → Atom v f → Holdsᶜ []) → Holdsᶜ []
+bind-atom n f fn =
+  let v = var n (eval f) in
+  let a = atom v f refl in
+  fn v refl a
+
+bind-let : ∀ {ℓ₁ ℓ₂} → {S₁ : Set ℓ₁} → {S₂ : Set ℓ₂} → (y : S₁) → (fn : (x : S₁) → x ≡ y → S₂) → S₂
+bind-let y fn = fn y refl
 
 -- XXX - need decl_bvatom?
 
