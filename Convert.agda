@@ -184,7 +184,7 @@ module _ where
     entry "cnfn" (con (quote Data.List.List.[])  , 0 , 0) $
     entry "cnfc" (con (quote Data.List.List._∷_) , 0 , 2) $
 
-    -- SAT - with leading (visible!) env argument
+    -- SAT
     -- bool, tt, ff, var, lit
     entry "pos"             (con (quote pos)        , 0 , 1) $
     entry "neg"             (con (quote neg)        , 0 , 1) $
@@ -196,26 +196,24 @@ module _ where
     entry "satlem"          (def (quote mpᶜ)        , 2 , 2) $
     -- clause_dedup, cnf_holds, cnfn_proof, cnfc_proof
 
-    -- SMT - no leading env argument
+    -- SMT
     -- formula
-    entry "th_holds" (def (quote Holds)  , 0 , 1) $
-    entry "true"     (con (quote trueᶠ)  , 0 , 0) $
-    entry "false"    (con (quote falseᶠ) , 0 , 0) $
+    entry "th_holds"          (def (quote Holds)           , 0 , 1) $
+    entry "true"              (con (quote trueᶠ)           , 0 , 0) $
+    entry "false"             (con (quote falseᶠ)          , 0 , 0) $
     -- formula_op1, formula_op2, formula_op3
-    entry "not"      (con (quote notᶠ)   , 0 , 1) $
-    entry "and"      (con (quote andᶠ)   , 0 , 2) $
-    entry "or"       (con (quote orᶠ)    , 0 , 2) $
-    entry "impl"     (con (quote implᶠ)  , 0 , 2) $
-    entry "iff"      (con (quote iffᶠ)   , 0 , 2) $
-    entry "xor"      (con (quote xorᶠ)   , 0 , 2) $
-    entry "ifte"     (con (quote iteᶠ)   , 0 , 3) $
+    entry "not"               (con (quote notᶠ)            , 0 , 1) $
+    entry "and"               (con (quote andᶠ)            , 0 , 2) $
+    entry "or"                (con (quote orᶠ)             , 0 , 2) $
+    entry "impl"              (con (quote implᶠ)           , 0 , 2) $
+    entry "iff"               (con (quote iffᶠ)            , 0 , 2) $
+    entry "xor"               (con (quote xorᶠ)            , 0 , 2) $
+    entry "ifte"              (con (quote iteᶠ)            , 0 , 3) $
     -- sort, term
-    entry "="        (con (quote equᶠ)   , 1 , 2) $
+    entry "="                 (con (quote equᶠ)            , 1 , 2) $
     -- ite, let, flet, Bool
-    entry "p_app"    (con (quote appᵇ)   , 0 , 1) $
+    entry "p_app"             (con (quote appᵇ)            , 0 , 1) $
     -- t_true, t_false
-
-    -- SMT.Rules - with leading (visible!) env argument
     entry "t_t_neq_f"         (def (quote t≢fᵇ)            , 0 , 0) $
     entry "pred_eq_t"         (def (quote x⇒x≡tᵇ)          , 1 , 2) $
     entry "pred_eq_f"         (def (quote ¬x⇒x≡fᵇ)         , 1 , 2) $
@@ -474,7 +472,7 @@ termFromExpr = do
 buildType : List Term → StateEither Term
 buildType [] = do
   ctx ← get↑
-  -- Holdsᶜ <envName> []
+  -- Holdsᶜ []
   return $ def (quote SAT.Holdsᶜ) $
     visArg (con (quote Data.List.List.[]) []) ∷
     []
