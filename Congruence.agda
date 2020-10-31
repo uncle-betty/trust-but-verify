@@ -1,4 +1,4 @@
-module Cong where
+module Congruence where
 
 open import Function.Equality using (_⟶_)
 

@@ -11,7 +11,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_) renaming (refl t
 open import SAT
 open import SMT
 open import Base
-open import Convert
+open import Transliterate
 
 instance
   _ = from⁺

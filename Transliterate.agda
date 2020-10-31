@@ -1,4 +1,4 @@
-module Convert where
+module Transliterate where
 
 open import Level using (0ℓ ; Lift)
 
