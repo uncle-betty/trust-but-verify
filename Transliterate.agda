@@ -298,17 +298,17 @@ termFromExpr′ : StateEither Term
 visArg : {S : Set} → S → Arg S
 visArg = arg (arg-info visible relevant)
 
-envTerm : ℕ → Map <-STO-Str Binding → Maybe Term
-envTerm depth bins =
+envTerm′ : ℕ → Map <-STO-Str Binding → Maybe Term
+envTerm′ depth bins =
   case lookup <-STO-Str "env" bins of (λ where
     (just (binding depthᵇ binTyNormal)) → just $ var (depth ∸ depthᵇ) []
     (just (binding _      binTyAtom))   → nothing
     nothing                             → just $ def (quote SAT.ε) [])
 
-envTermAction : ℕ → Map <-STO-Str Binding → StateEither Term
-envTermAction depth bins = do
+envTerm : ℕ → Map <-STO-Str Binding → StateEither Term
+envTerm depth bins = do
   ctx ← get↑
-  case envTerm (ctxDepth ctx) (ctxBins ctx) of λ where
+  case envTerm′ (ctxDepth ctx) (ctxBins ctx) of λ where
     nothing  → fail↑ [ "LFSC - invalid binding type for 'env'" ]
     (just t) → return t
 
@@ -318,13 +318,13 @@ termFromBin ident depth bins =
     (binding depthᵇ binTy) → ((case binTy of λ where
         binTyNormal → just []
         binTyAtom   →
-          envTerm depth bins >>=ₘ
+          envTerm′ depth bins >>=ₘ
           λ t → just $ visArg t ∷ visArg (con (quote refl) []) ∷ []) >>=ₘ
       just ∘ var (depth ∸ depthᵇ))
 
 termFromConst : String → ℕ → Map <-STO-Str Binding → Maybe Term
 termFromConst ident depth bins = case lookup <-STO-Str ident constMap of λ where
-  (just (cons , zero , zero)) → envTerm depth bins >>=ₘ λ t → just $ cons [ visArg t ]
+  (just (cons , zero , zero)) → envTerm′ depth bins >>=ₘ λ t → just $ cons [ visArg t ]
   _                           → nothing
 
 termFromIdent : String → StateEither Term
@@ -453,7 +453,7 @@ handleDeclAtom = do
         ctxVarNo = suc $ ctxVarNo ctx
       }
     ctx ← get↑
-    env ← envTermAction (ctxDepth ctx) (ctxBins ctx)
+    env ← envTerm (ctxDepth ctx) (ctxBins ctx)
     t₂ ← localContext $ do
       lambdaContext v binTyNormal
       lambdaContext "env" binTyNormal
@@ -479,7 +479,7 @@ handleAppl ident = do
   (cons , nImpls , nArgs) ← constLookup ident
   skipImplicits nImpls
   ctx ← get↑
-  env ← case envTerm (ctxDepth ctx) (ctxBins ctx) of λ where
+  env ← case envTerm′ (ctxDepth ctx) (ctxBins ctx) of λ where
     nothing  → fail↑ [ "LFSC - invalid binding type for 'env'" ]
     (just t) → return t
   args ← buildTerms [] nArgs
