@@ -86,3 +86,34 @@ module SMT₂ where
   -- now we can do the same things we did in SMT₁
   proof-prop : (x : Bool) → T x ⇔ T x
   proof-prop x = final (iffᶠ (appᵇ x) (appᵇ x)) (proof x (holds trueᶠ reflₚ))
+
+module SMT₃ where
+  -- this one's a little longer and reasons about variables (see let1, let2, let3)
+  input : String
+  input = "
+    (check
+    (% z (term Bool)
+    (% x (term Bool)
+    (% y (term Bool)
+    (% A1 (th_holds true)
+    (% A0 (th_holds (not (impl (and (and (p_app x) (p_app y)) (p_app z)) (and (p_app z) (p_app x)))))
+    (: (holds cln)
+    (@ let1 x
+    (@ let2 y
+    (@ let3 z
+    (th_let_pf _ (trust_f (not (impl (and (p_app let3) (and (p_app let1) (p_app let2) )) (and (p_app let3) (p_app let1))))) (\\ .PA278
+    (decl_atom (p_app let1) (\\ .v3 (\\ .a3
+    (decl_atom (p_app let2) (\\ .v4 (\\ .a4
+    (decl_atom (p_app let3) (\\ .v2 (\\ .a2
+    (satlem _ _ (asf _ _ _ .a2 (\\ .l4 (clausify_false (contra _ (and_elim_1 _ _ (and_elim_1 _ _ (not_impl_elim _ _ .PA278))) .l4)))) (\\ .pb4
+    (satlem _ _ (ast _ _ _ .a3 (\\ .l7 (ast _ _ _ .a2 (\\ .l5 (clausify_false (contra _ .l7 (or_elim_1 _ _ (not_not_intro _ .l5) (not_and_elim _ _ (and_elim_2 _ _ (not_impl_elim _ _ .PA278)))))))))) (\\ .pb7
+    (satlem _ _ (asf _ _ _ .a3 (\\ .l6 (clausify_false (contra _ (and_elim_1 _ _ (and_elim_2 _ _ (and_elim_1 _ _ (not_impl_elim _ _ .PA278)))) .l6)))) (\\ .pb5
+    (satlem_simplify _ _ _ (Q _ _ (Q _ _ .pb7 .pb5 .v3) .pb4 .v2) (\\ empty empty)))))))))))))))))))))))))))))"
+
+  typeTerm = convertProof input
+
+  proof : proofType typeTerm
+  proof = proofTerm typeTerm
+
+  proof-prop : (z x y : Bool) → (T x × T y) × T z → T z × T x
+  proof-prop z x y = final ((implᶠ (andᶠ (andᶠ (appᵇ x) (appᵇ y)) (appᵇ z)) (andᶠ (appᵇ z) (appᵇ x)))) (proof z x y (holds trueᶠ reflₚ))
