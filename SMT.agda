@@ -76,10 +76,6 @@ data Formula where
 
   -- LFSC: bvult, ... (binary relations over terms)
   decˣ   : {S : Set} → Dec S → Formula
-  -- extension - boolean subformulas
-  boolˣ  : Formula → Formula
-  -- extension - boolean equalities
-  equˣ   : Formula → Formula → Formula
 
 -- LFSC: sort, term replaced by Bool and BitVec
 
@@ -122,10 +118,7 @@ eval (iteᶠ f₁ f₂ f₃) = if eval f₁ then eval f₂ else eval f₃
 eval (equᶠ {{s}} x₁ x₂) = does (DecSetoid._≟_ s x₁ x₂)
 
 eval (appᵇ b) = b
-
 eval (decˣ d) = does d
-eval (boolˣ f) = eval f
-eval (equˣ f₁ f₂) = eval f₁ ≡ᵇ eval f₂
 
 prop : Formula → Set
 prop trueᶠ  = ⊤
@@ -141,10 +134,7 @@ prop (iteᶠ f₁ f₂ f₃) = (prop f₁ × prop f₂) ⊎ (¬ prop f₁ × pro
 prop (equᶠ {{s}} x₁ x₂) = DecSetoid._≈_ s x₁ x₂
 
 prop (appᵇ b) = T b
-
 prop (decˣ {S} _) = S
-prop (boolˣ f) = T (eval f)
-prop (equˣ f₁ f₂) = eval f₁ ≡ eval f₂
 
 -- XXX - wait... did I reinvent Dec here, with "eval f" reflecting "prop f"?
 prove : ∀ f → eval f ≡ true → prop f
@@ -210,10 +200,7 @@ prove (equᶠ {{s}} x₁ x₂) with DecSetoid._≟_ s x₁ x₂
 ... | false because ofⁿ _ = λ ()
 
 prove (appᵇ b) refl = tt
-
 prove (decˣ (true because ofʸ p)) refl = p
-prove (boolˣ f) p = subst T (sym p) tt
-prove (equˣ f₁ f₂) p = ≡ᵇ≡t⇒≡ (eval f₁) (eval f₂) p
 
 prove-¬ falseᶠ p = id
 
@@ -305,49 +292,7 @@ prove-¬ (equᶠ {{s}} x₁ x₂) with DecSetoid._≟_ s x₁ x₂
 ... | false because ofⁿ p = λ { refl → p }
 
 prove-¬ (appᵇ b) refl = id
-
 prove-¬ (decˣ (false because ofⁿ p)) refl = p
-prove-¬ (boolˣ f) p r = subst T p r
-prove-¬ (equˣ f₁ f₂) p = ≡ᵇ≡f⇒≢ (eval f₁) (eval f₂) p
-
-strip : Formula → Formula
-strip trueᶠ = trueᶠ
-strip falseᶠ = falseᶠ
-
-strip (notᶠ f) = notᶠ (strip f)
-strip (andᶠ f₁ f₂) = andᶠ (strip f₁) (strip f₂)
-strip (orᶠ f₁ f₂) = orᶠ (strip f₁) (strip f₂)
-strip (implᶠ f₁ f₂) = implᶠ (strip f₁) (strip f₂)
-strip (iffᶠ f₁ f₂) = iffᶠ (strip f₁) (strip f₂)
-strip (xorᶠ f₁ f₂) = xorᶠ (strip f₁) (strip f₂)
-strip (iteᶠ f₁ f₂ f₃) = iteᶠ (strip f₁) (strip f₂) (strip f₃)
-strip (equᶠ {{s}} x₁ x₂) = equᶠ {{s}} x₁ x₂
-
-strip (appᵇ b) = appᵇ b
-
-strip (decˣ d) = decˣ d
-strip (boolˣ f) = strip f
-strip (equˣ f₁ f₂) = iffᶠ (strip f₁) (strip f₂)
-
-strip-sound : ∀ f → eval (strip f) ≡ eval f
-
-strip-sound trueᶠ = refl
-strip-sound falseᶠ = refl
-
-strip-sound (notᶠ f) rewrite strip-sound f = refl
-strip-sound (andᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
-strip-sound (orᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
-strip-sound (implᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
-strip-sound (iffᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
-strip-sound (xorᶠ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
-strip-sound (iteᶠ f₁ f₂ f₃) rewrite strip-sound f₁ | strip-sound f₂ | strip-sound f₃ = refl
-strip-sound (equᶠ {{s}} x₁ x₂) = refl
-
-strip-sound (appᵇ b) = refl
-
-strip-sound (decˣ d) = refl
-strip-sound (boolˣ f) = strip-sound f
-strip-sound (equˣ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
 
 -- LFSC: th_holds
 data Holds : Formula → Set where
@@ -359,13 +304,10 @@ holdsᶜ-[] (holdsᶜ .[] ())
 holdsᶜ-[]-ε : ∀ {env} → Holdsᶜ env [] → Holdsᶜ ε []
 holdsᶜ-[]-ε (holdsᶜ .[] ())
 
-final : ∀ {env} f → (Holds (notᶠ (strip f)) → Holdsᶜ env []) → prop f
-final {env} f h = prove f $ subst (_≡ true) (strip-sound f) (lem (strip f) h)
-  where
-  lem : ∀ f → (Holds (notᶠ f) → Holdsᶜ env []) → eval f ≡ true
-  lem f h with eval f | inspect eval f
-  ... | true  | [ eq ] = refl
-  ... | false | [ eq ] = contradiction (holds (notᶠ f) (f⇒not-t eq)) (holdsᶜ-[] ∘ h)
+invert : ∀ {f} → (Holds (notᶠ f) → Holdsᶜ ε []) → prop f
+invert {f} h with eval f | inspect eval f
+... | true  | [ eq ] = prove f eq
+... | false | [ eq ] = contradiction (holds (notᶠ f) (f⇒not-t eq)) (holdsᶜ-[] ∘ h)
 
 -- LFSC: t_t_neq_f
 t≢fᵇ : Holds (notᶠ (equᶠ true false))

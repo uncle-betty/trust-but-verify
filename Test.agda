@@ -39,6 +39,7 @@ module SAT₂ where
     mp⁺ ε x₂ id
 
 module SMT₁ where
+  proof : (x : Bool) → Holds trueᶠ → Holds (notᶠ (iffᶠ (appᵇ x) (appᵇ x))) → Holdsᶜ ε []
   proof =
     λ (x : Bool) →
     λ (as₁ : Holds trueᶠ) →
@@ -57,7 +58,7 @@ module SMT₁ where
       }
 
   proof-prop : (x : Bool) → T x ⇔ T x
-  proof-prop x = final (iffᶠ (appᵇ x) (appᵇ x)) (proof x (holds trueᶠ reflₚ))
+  proof-prop x = invert $ proof x (holds trueᶠ reflₚ)
 
 module SMT₂ where
   -- the LFSC proof output by CVC4; comments supported, but removed for brevity
@@ -86,7 +87,7 @@ module SMT₂ where
 
   -- now we can do the same things we did in SMT₁
   proof-prop : (x : Bool) → T x ⇔ T x
-  proof-prop x = final (iffᶠ (appᵇ x) (appᵇ x)) (proof x (holds trueᶠ reflₚ))
+  proof-prop x = invert $ proof x (holds trueᶠ reflₚ)
 
 module SMT₃ where
   -- this one's a little longer and reasons about variables (see let1, let2, let3)
@@ -117,4 +118,4 @@ module SMT₃ where
   proof = proofTerm typeTerm
 
   proof-prop : (z x y : Bool) → (T x × T y) × T z → T z × T x
-  proof-prop z x y = final ((implᶠ (andᶠ (andᶠ (appᵇ x) (appᵇ y)) (appᵇ z)) (andᶠ (appᵇ z) (appᵇ x)))) (proof z x y (holds trueᶠ reflₚ))
+  proof-prop z x y = invert $ proof z x y (holds trueᶠ reflₚ)
