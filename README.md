@@ -110,6 +110,7 @@ different names for things, but other than that, it's pretty much 1:1.
 
 ```
 module SMT₁ where
+  proof : (x : Bool) → Holds trueᶠ → Holds (notᶠ (iffᶠ (appᵇ x) (appᵇ x))) → Holdsᶜ ε []
   proof =
     λ (x : Bool) →
     λ (as₁ : Holds trueᶠ) →
