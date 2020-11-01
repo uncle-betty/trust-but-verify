@@ -105,6 +105,9 @@ get to false.
 (satlem_simplify _ _ _ (R _ _ .pb4 .pb1 .v1) (\ empty empty)))))))))))))))))))
 ```
 
+(I have no idea where the `(th_holds true)` comes from. Why does CVC4 want me
+to provide a - trivial - proof that true holds?)
+
 Submodule `SMT₁` contains a manually transliterated version of the proof. I have
 different names for things, but other than that, it's pretty much 1:1.
 
