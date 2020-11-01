@@ -43,6 +43,7 @@ module SMT₁ where
     λ (x : Bool) →
     λ (as₁ : Holds trueᶠ) →
     λ (as₂ : Holds (notᶠ (iffᶠ (appᵇ x) (appᵇ x)))) →
+    holdsᶜ-[]-ε $
     bind-let falseᶠ λ {
       let₁ reflₚ →
         mp (trust falseᶠ) λ pa₁ →
