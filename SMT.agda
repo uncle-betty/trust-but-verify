@@ -27,7 +27,10 @@ open import Relation.Nullary using (¬_ ; Dec ; does ; _because_ ; ofʸ ; ofⁿ)
 open import Relation.Nullary.Negation using (contradiction)
 
 open import SAT
-  using (Var ; var ; evalᵛ ; pos ; neg ; Holdsᶜ ; holdsᶜ ; holdsᶜ-[] ; evalᶜ ; not-t⇒f ; f⇒not-t)
+  using (
+    Var ; var ; pos ; neg ; not-t⇒f ; f⇒not-t ;
+    Env ; ε ; assignᵛ ; evalᵛ ; evalᶜ ; Holdsᶜ ; holdsᶜ
+  )
 
 instance
   _ = bool-setoid
@@ -350,10 +353,16 @@ strip-sound (equˣ f₁ f₂) rewrite strip-sound f₁ | strip-sound f₂ = refl
 data Holds : Formula → Set where
   holds : ∀ f → eval f ≡ true → Holds f
 
-final : ∀ f → (Holds (notᶠ (strip f)) → Holdsᶜ []) → prop f
-final f h = prove f $ subst (_≡ true) (strip-sound f) (lem (strip f) h)
+holdsᶜ-[] : ∀ {env} → Holdsᶜ env [] → ⊥
+holdsᶜ-[] (holdsᶜ .[] ())
+
+holdsᶜ-[]-ε : ∀ {env} → Holdsᶜ env [] → Holdsᶜ ε []
+holdsᶜ-[]-ε (holdsᶜ .[] ())
+
+final : ∀ {env} f → (Holds (notᶠ (strip f)) → Holdsᶜ env []) → prop f
+final {env} f h = prove f $ subst (_≡ true) (strip-sound f) (lem (strip f) h)
   where
-  lem : ∀ f → (Holds (notᶠ f) → Holdsᶜ []) → eval f ≡ true
+  lem : ∀ f → (Holds (notᶠ f) → Holdsᶜ env []) → eval f ≡ true
   lem f h with eval f | inspect eval f
   ... | true  | [ eq ] = refl
   ... | false | [ eq ] = contradiction (holds (notᶠ f) (f⇒not-t eq)) (holdsᶜ-[] ∘ h)
@@ -421,19 +430,25 @@ x⇔t⇒x≡tᵇ : ∀ {b} → Holds (iffᶠ (appᵇ b) trueᶠ) → Holds (equ�
 x⇔t⇒x≡tᵇ {true} (holds _ _) = holds _ refl
 
 -- LFSC: atom
-data Atom : Var → Formula → Set where
-  atom : ∀ v f → evalᵛ v ≡ eval f → Atom v f
+data Atom : Var → Formula → Env → Set where
+  atom : ∀ v f env → evalᵛ env v ≡ eval f → Atom v f env
 
 -- XXX - need bvatom?
 
 -- LFSC: decl_atom
--- type checker needs to know v, so that resolution can proceed, hence the v ≡ ... proof
-bind-atom : (n : ℕ) → (f : Formula) →
-  (fn : (v : Var) → v ≡ var n (eval f) → Atom v f → Holdsᶜ []) → Holdsᶜ []
-bind-atom n f fn =
-  let v = var n (eval f) in
-  let a = atom v f refl in
-  fn v refl a
+bind-atom : {env-[] : Env} → (n : ℕ) → (f : Formula) → (env-in : Env) →
+  (fn :
+    (v : Var) → v ≡ var n →
+    (env-out : Env) → env-out ≡ assignᵛ env-in v (eval f) →
+    ((env : Env) → evalᵛ env v ≡ eval f → Atom v f env) →
+    Holdsᶜ env-[] []) →
+  Holdsᶜ env-[] []
+
+bind-atom n f env-in fn =
+  let v = var n in
+  let a⁻ = atom v f in
+  let env-out = assignᵛ env-in v (eval f) in
+  fn v refl env-out refl a⁻
 
 bind-let : ∀ {ℓ₁ ℓ₂} → {S₁ : Set ℓ₁} → {S₂ : Set ℓ₂} → (y : S₁) → (fn : (x : S₁) → x ≡ y → S₂) → S₂
 bind-let y fn = fn y refl
@@ -441,23 +456,23 @@ bind-let y fn = fn y refl
 -- XXX - need decl_bvatom?
 
 -- LFSC: clausify_form
-clausi : ∀ {f v} → Atom v f → Holds f → Holdsᶜ (pos v ∷ [])
+clausi : ∀ {f v env} → Atom v f env → Holds f → Holdsᶜ env (pos v ∷ [])
 
-clausi {f} {v} (atom .v .f a) (holds .f h)
+clausi {f} {v} {env} (atom .v .f .env a) (holds .f h)
   rewrite h = holdsᶜ (pos v ∷ []) (subst (λ # → # ∨ false ≡ true) (sym a) refl)
 
 -- LFSC: clausify_form_not
-clausi-¬ : ∀ {f v} → Atom v f → Holds (notᶠ f) → Holdsᶜ (neg v ∷ [])
+clausi-¬ : ∀ {f v env} → Atom v f env → Holds (notᶠ f) → Holdsᶜ env (neg v ∷ [])
 
-clausi-¬ {f} {v} (atom .v .f a) (holds .(notᶠ f) h)
+clausi-¬ {f} {v} {env} (atom .v .f .env a) (holds .(notᶠ f) h)
   rewrite not-t⇒f h = holdsᶜ (neg v ∷ []) (subst (λ # → not # ∨ false ≡ true) (sym a) refl)
 
 -- LFSC: clausify_false
-clausi-f : Holds falseᶠ → Holdsᶜ []
+clausi-f : ∀ {env} → Holds falseᶠ → Holdsᶜ env []
 clausi-f (holds .falseᶠ ())
 
 -- LFSC: th_let_pf
-mp : ∀ {f} → Holds f → (Holds f → Holdsᶜ []) → Holdsᶜ []
+mp : ∀ {env f} → Holds f → (Holds f → Holdsᶜ env []) → Holdsᶜ env []
 mp {f} h fn = fn h
 
 -- LFSC: iff_symm
@@ -677,25 +692,25 @@ ite-elim-both {f₁} {f₂} {f₃} (holds _ p) = holds _ lem
   ... | false rewrite p = ∨-zeroʳ (not (eval f₂))
 
 -- LFSC: ast
-assum : ∀ {v f c} → Atom v f → (Holds f → Holdsᶜ c) → Holdsᶜ (neg v ∷ c)
-assum {v} {f} {c} (atom .v .f a) fn = holdsᶜ (neg v ∷ c) lem₂
+assum : ∀ {v f env c} → Atom v f env → (Holds f → Holdsᶜ env c) → Holdsᶜ env (neg v ∷ c)
+assum {v} {f} {env} {c} (atom .v .f .env a) fn = holdsᶜ (neg v ∷ c) lem₂
   where
-  lem₁ : ∀ {f c} → (Holds f → Holdsᶜ c) → eval f ≡ true → evalᶜ c ≡ true
+  lem₁ : ∀ {f c} → (Holds f → Holdsᶜ env c) → eval f ≡ true → evalᶜ env c ≡ true
   lem₁ {f} {c} fn e with holdsᶜ _ h ← fn (holds f e) = h
 
-  lem₂ : not (evalᵛ v) ∨ evalᶜ c ≡ true
+  lem₂ : not (evalᵛ env v) ∨ evalᶜ env c ≡ true
   lem₂ with eval f | inspect eval f
   lem₂ | true  | [ eq ] rewrite a = lem₁ fn eq
   lem₂ | false | _      rewrite a = refl
 
 -- LFSC: asf
-assum-¬ : ∀ {v f c} → Atom v f → (Holds (notᶠ f) → Holdsᶜ c) → Holdsᶜ (pos v ∷ c)
-assum-¬ {v} {f} {c} (atom .v .f a) fn = holdsᶜ (pos v ∷ c) lem₂
+assum-¬ : ∀ {v f env c} → Atom v f env → (Holds (notᶠ f) → Holdsᶜ env c) → Holdsᶜ env (pos v ∷ c)
+assum-¬ {v} {f} {env} {c} (atom .v .f .env a) fn = holdsᶜ (pos v ∷ c) lem₂
   where
-  lem₁ : ∀ {f c} → (Holds (notᶠ f) → Holdsᶜ c) → eval f ≡ false → evalᶜ c ≡ true
+  lem₁ : ∀ {f c} → (Holds (notᶠ f) → Holdsᶜ env c) → eval f ≡ false → evalᶜ env c ≡ true
   lem₁ {f} {c} fn e with holdsᶜ _ h ← fn (holds (notᶠ f) (f⇒not-t e)) = h
 
-  lem₂ : evalᵛ v ∨ evalᶜ c ≡ true
+  lem₂ : evalᵛ env v ∨ evalᶜ env c ≡ true
   lem₂ with eval f | inspect eval f
   lem₂ | true  | _      rewrite a = refl
   lem₂ | false | [ eq ] rewrite a = lem₁ fn eq

@@ -4,7 +4,7 @@ open import Data.Bool using (Bool ; true ; false ; T)
 open import Data.List using ([] ; _∷_)
 open import Data.Product using (_×_)
 open import Data.String using (String)
-open import Function using (id ; _$_)
+open import Function using (id ; _$_ ; _∘_)
 open import Function.Equivalence using (_⇔_)
 open import Relation.Binary.PropositionalEquality using (_≡_) renaming (refl to reflₚ)
 
@@ -18,25 +18,25 @@ instance
   _ = fromᶜ
 
 module SAT₁ where
-  proof : Holdsᶜ (pos (var 0 false) ∷ []) → Holdsᶜ (neg (var 1 true) ∷ []) →
-    Holdsᶜ (neg (var 0 false) ∷ pos (var 1 true) ∷ []) → Holdsᶜ []
+  proof : Holdsᶜ ε (pos (var 0) ∷ []) → Holdsᶜ ε (neg (var 1) ∷ []) →
+    Holdsᶜ ε (neg (var 0) ∷ pos (var 1) ∷ []) → Holdsᶜ ε []
 
   proof a b r =
-    let a⁺ = expand a in
-    let b⁺ = expand b in
-    let r⁺ = expand r in
-    let x₁ = resolve-r a⁺ r⁺ (var 0 false) in
-    let x₂ = resolve-q b⁺ x₁ (var 1 true) in
-    mp⁺ x₂ id
+    let a⁺ = expand ε a in
+    let b⁺ = expand ε b in
+    let r⁺ = expand ε r in
+    let x₁ = resolve-r ε a⁺ r⁺ (var 0) in
+    let x₂ = resolve-q ε b⁺ x₁ (var 1) in
+    mp⁺ ε x₂ id
 
 module SAT₂ where
-  proof : Holdsᶜ (pos (var 0 false) ∷ []) → Holdsᶜ (neg (var 1 true) ∷ []) →
-    Holdsᶜ (neg (var 0 false) ∷ pos (var 1 true) ∷ []) → Holdsᶜ []
+  proof : Holdsᶜ ε (pos (var 0) ∷ []) → Holdsᶜ ε (neg (var 1) ∷ []) →
+    Holdsᶜ ε (neg (var 0) ∷ pos (var 1) ∷ []) → Holdsᶜ ε []
 
   proof a b r =
-    let x₁ = resolve-r⁺ a r  (var 0 false) in
-    let x₂ = resolve-q⁺ b x₁ (var 1 true) in
-    mp⁺ x₂ id
+    let x₁ = resolve-r⁺ ε a r  (var 0) in
+    let x₂ = resolve-q⁺ ε b x₁ (var 1) in
+    mp⁺ ε x₂ id
 
 module SMT₁ where
   proof =
@@ -47,11 +47,11 @@ module SMT₁ where
       let₁ reflₚ →
         mp (trust falseᶠ) λ pa₁ →
         mp (trust (notᶠ let₁)) λ pa₂ →
-        bind-atom 1 let₁ λ {
-          v₁ reflₚ a₁ →
-            mpᶜ (assum a₁ λ l₃ → clausi-f (contra l₃ pa₂)) λ pb₁ →
-            mpᶜ (assum-¬ a₁ λ l₂ → clausi-f (contra pa₁ l₂)) λ pb₄ →
-            mp⁺ (resolve-r⁺ pb₄ pb₁ v₁) id
+        bind-atom 1 let₁ ε λ {
+          v₁ reflₚ env reflₚ a₁ →
+            mpᶜ env (assum (a₁ env reflₚ) λ l₃ → clausi-f (contra l₃ pa₂)) λ pb₁ →
+            mpᶜ env (assum-¬ (a₁ env reflₚ) λ l₂ → clausi-f (contra pa₁ l₂)) λ pb₄ →
+            mp⁺ env (resolve-r⁺ env pb₄ pb₁ v₁) id
           }
       }
 
