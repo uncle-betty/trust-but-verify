@@ -19,7 +19,8 @@ into supporting my first theory, the theory of bit vectors, followed by the
 theory of arrays.
 
 Another thing I'd like to look into is performance. Parsing CVC4's proofs is
-incredibly slow at this time.
+incredibly slow at this time. The really small test proofs in `Test.agda` take
+over 8 minutes on my machine!
 
 A few pointers:
 
