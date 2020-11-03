@@ -67,7 +67,7 @@ data Formula where
   -- LFSC: ifte
   iteᶠ   : formula-op₃
   -- LFSC: =
-  equᶠ   : {{s : DecSetoid 0ℓ 0ℓ}} → DecSetoid.Carrier s → DecSetoid.Carrier s → Formula
+  equᶠ   : {{dsd : DecSetoid 0ℓ 0ℓ}} → DecSetoid.Carrier dsd → DecSetoid.Carrier dsd → Formula
 
   -- LFSC: p_app
   appᵇ   : Bool → Formula
@@ -115,7 +115,7 @@ eval (implᶠ f₁ f₂) = eval f₁ →ᵇ eval f₂
 eval (iffᶠ f₁ f₂) = eval f₁ ≡ᵇ eval f₂
 eval (xorᶠ f₁ f₂) = eval f₁ xor eval f₂
 eval (iteᶠ f₁ f₂ f₃) = if eval f₁ then eval f₂ else eval f₃
-eval (equᶠ {{s}} x₁ x₂) = does (DecSetoid._≟_ s x₁ x₂)
+eval (equᶠ {{dsd}} x₁ x₂) = does (DecSetoid._≟_ dsd x₁ x₂)
 
 eval (appᵇ b) = b
 eval (decˣ d) = does d
@@ -131,7 +131,7 @@ prop (implᶠ f₁ f₂) = prop f₁ → prop f₂
 prop (iffᶠ f₁ f₂) = prop f₁ ⇔ prop f₂
 prop (xorᶠ f₁ f₂) = (prop f₁ × ¬ prop f₂) ⊎ (¬ prop f₁ × prop f₂)
 prop (iteᶠ f₁ f₂ f₃) = (prop f₁ × prop f₂) ⊎ (¬ prop f₁ × prop f₃)
-prop (equᶠ {{s}} x₁ x₂) = DecSetoid._≈_ s x₁ x₂
+prop (equᶠ {{dsd}} x₁ x₂) = DecSetoid._≈_ dsd x₁ x₂
 
 prop (appᵇ b) = T b
 prop (decˣ {S} _) = S
@@ -195,7 +195,7 @@ prove (iteᶠ f₁ f₂ f₃) _  | false | [ eq₁ ] | _     | _       | true  |
 
 prove (iteᶠ f₁ f₂ f₃) () | false | _       | _     | _       | false | _
 
-prove (equᶠ {{s}} x₁ x₂) with DecSetoid._≟_ s x₁ x₂
+prove (equᶠ {{dsd}} x₁ x₂) with DecSetoid._≟_ dsd x₁ x₂
 ... | true  because ofʸ p = λ { refl → p }
 ... | false because ofⁿ _ = λ ()
 
@@ -287,7 +287,7 @@ prove-¬ (iteᶠ f₁ f₂ f₃) _  (inj₁ r) | false | [ eq₁ ] | _     | _  
 prove-¬ (iteᶠ f₁ f₂ f₃) _  (inj₂ r) | false | _       | _     | _       | false | [ eq₃ ] =
   contradiction (proj₂ r) (prove-¬ f₃ eq₃)
 
-prove-¬ (equᶠ {{s}} x₁ x₂) with DecSetoid._≟_ s x₁ x₂
+prove-¬ (equᶠ {{dsd}} x₁ x₂) with DecSetoid._≟_ dsd x₁ x₂
 ... | true  because ofʸ _ = λ ()
 ... | false because ofⁿ p = λ { refl → p }
 
