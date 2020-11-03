@@ -183,11 +183,12 @@ module _ where
     noEnv "term"  (def (quote pass₁) , 0 , 1) $
 
     -- built-ins
-    noEnv "Bool" (def (quote Data.Bool.Bool)     , 0 , 0) $
-    noEnv "cln"  (con (quote Data.List.List.[])  , 0 , 0) $
-    noEnv "clc"  (con (quote Data.List.List._∷_) , 0 , 2) $
-    noEnv "cnfn" (con (quote Data.List.List.[])  , 0 , 0) $
-    noEnv "cnfc" (con (quote Data.List.List._∷_) , 0 , 2) $
+    noEnv "Bool"  (def (quote Data.Bool.Bool)     , 0 , 0) $
+    noEnv "cln"   (con (quote Data.List.List.[])  , 0 , 0) $
+    noEnv "clc"   (con (quote Data.List.List._∷_) , 0 , 2) $
+    noEnv "cnfn"  (con (quote Data.List.List.[])  , 0 , 0) $
+    noEnv "cnfc"  (con (quote Data.List.List._∷_) , 0 , 2) $
+    noEnv "apply" (def (quote Function._$_)       , 2 , 2) $
 
     -- SAT
     -- bool, tt, ff, var, lit
@@ -220,8 +221,8 @@ module _ where
     noEnv "p_app"             (con (quote appᵇ)            , 0 , 1) $
     -- t_true, t_false
     noEnv "t_t_neq_f"         (def (quote t≢fᵇ)            , 0 , 0) $
-    noEnv "pred_eq_t"         (def (quote x⇒x≡tᵇ)          , 1 , 2) $
-    noEnv "pred_eq_f"         (def (quote ¬x⇒x≡fᵇ)         , 1 , 2) $
+    noEnv "pred_eq_t"         (def (quote x⇒x≡tᵇ)          , 1 , 1) $
+    noEnv "pred_eq_f"         (def (quote ¬x⇒x≡fᵇ)         , 1 , 1) $
     -- f_to_b
     noEnv "true_preds_equal"  (def (quote x⇒y⇒x≡yᵇ)        , 2 , 2) $
     noEnv "false_preds_equal" (def (quote ¬x⇒¬y⇒x≡yᵇ)      , 2 , 2) $
@@ -280,7 +281,7 @@ module _ where
     noEnv "negsymm"   (def (quote Base.¬-sym)    , 3 , 1) $
     noEnv "negtrans1" (def (quote Base.¬-trans₁) , 4 , 2) $
     noEnv "negtrans2" (def (quote Base.¬-trans₂) , 4 , 2) $
-    -- XXX - figure out cong
+    noEnv "cong"      (def (quote Base.cong)     , 6 , 2) $
 
     end
 
@@ -474,6 +475,12 @@ handleDeclAtom = do
         ] []) ∷
       []
 
+handleArrow : StateEither Term
+handleArrow = do
+  t₁ ← buildOneTerm
+  t₂ ← buildOneTerm
+  return $ pi (visArg t₁) (abs "_" t₂)
+
 handleAppl : String → StateEither Term
 handleAppl ident = do
   (cons , nImpls , nArgs) ← constLookup ident
@@ -501,6 +508,7 @@ handleBody = do
     "@"         → handleLet
     ":"         → handleAscribe
     "decl_atom" → handleDeclAtom
+    "arrow"     → handleArrow
     _           → handleAppl ident
 
 termFromExpr′ = do
