@@ -6,7 +6,7 @@ open import Data.Bool using (Bool ; true ; false ; _∧_ ; _∨_ ; not ; T ; if_
 open import Data.Bool.Properties using (∨-zeroʳ)
 open import Data.Empty using (⊥ ; ⊥-elim)
 open import Data.List using (List ; [] ; _∷_ ; _++_ ; map)
-open import Data.Maybe using (just ; nothing)
+open import Data.Maybe using (just ; nothing ; is-just)
 open import Data.Nat using (ℕ ; _<_)
 open import Data.Nat.Properties using (<-trans) renaming (<-strictTotalOrder to <-STO)
 open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂)
@@ -92,8 +92,7 @@ var-<-STO : STO 0ℓ 0ℓ 0ℓ
 var-<-STO = record { Carrier = Var ; _≈_ = _≡_ ; _<_ = Var-< ; isStrictTotalOrder = var-<-ISTO }
 
 import Data.Tree.AVL.Map var-<-STO as M using (Map ; empty ; insert ; lookup)
-import Data.Tree.AVL.Indexed var-<-STO as IM using (const)
-import AVL var-<-STO (IM.const Bool) id (λ _ _ → refl) as AM using (avl-insed ; avl-other)
+import AVL var-<-STO Bool as AM using (avl-insed ; avl-other)
 
 map-insed : ∀ v (b : Bool) m → (M.lookup v (M.insert v b m)) ≡ just b
 map-insed v b m = AM.avl-insed v b m
@@ -154,14 +153,13 @@ module _ (env : Env) where
   ... | tri> _ p _ = false because ofⁿ p
 
   open import Data.Tree.AVL.Sets lit-<-STO using (⟨Set⟩ ; empty ; insert ; _∈?_)
-  import Data.Tree.AVL.Indexed lit-<-STO as IS using (const)
-  import AVL lit-<-STO (IS.const ⊤) id (λ _ _ → refl) as AS using (avl-insed ; avl-other)
+  import AVL lit-<-STO ⊤ as AS using (avl-insed ; avl-other)
 
   set-insed : ∀ l s → (l ∈? (insert l s)) ≡ true
-  set-insed l s rewrite AS.avl-insed l tt s = refl
+  set-insed l s = cong is-just (AS.avl-insed l tt s)
 
   set-other : ∀ l′ l s → l′ ≢ l → (l′ ∈? (insert l s)) ≡ (l′ ∈? s)
-  set-other l′ l s l′≢l rewrite AS.avl-other l′ l tt s l′≢l = refl
+  set-other l′ l s l′≢l = cong is-just (AS.avl-other l′ l tt s l′≢l)
 
   set-≡ : ∀ s₁ s₂ → Set
   set-≡ s₁ s₂ = ∀ l′ → (l′ ∈? s₁) ≡ (l′ ∈? s₂)
