@@ -7,8 +7,7 @@ module Arrays (stoᵏ : STO 0ℓ 0ℓ 0ℓ) (dsdᵛ : DSD 0ℓ 0ℓ)
 dsdᵏ = STO.decSetoid stoᵏ
 
 open import Data.Bool using (Bool ; true ; false ; _∨_ ; not)
-open import Data.Bool.Properties using (∨-zeroˡ ; ∨-zeroʳ)
-open import Data.Empty using (⊥-elim)
+open import Data.Bool.Properties using (∨-zeroˡ ; ∨-zeroʳ ; not-¬)
 open import Data.List using (List ; [] ; _∷_ ; map)
 open import Data.List.Properties using () renaming (≡-dec to ≡-decˡ)
 open import Data.List.Membership.DecSetoid dsdᵏ using (_∈_ ; _∉_ ; _∈?_)
@@ -50,10 +49,10 @@ open STO stoᵏ using () renaming (
     _<_ to _<ᵏ_ ; compare to compᵏ ; trans to <-transᵏ ; irrefl to irreflᵏ ; <-resp-≈ to <-resp-≈ᵏ
   )
 
-open import AVL stoᵏ Val using (V ; flat ; get ; put)
+open import AVL stoᵏ Val using (V ; flat ; get ; put ; avl-insed ; avl-other)
   renaming (lookup≡get to lookup′≡get ; insert≡put to insert′≡put)
 
-open import SAT using (Env ; Holdsᶜ)
+open import SAT using (Env ; Holdsᶜ ; not-t⇒f ; f⇒not-t)
 open import SMT using (orᶠ ; notᶠ ; equᶠ ; Holds ; holds)
 
 -- LFSC: Array
@@ -244,3 +243,60 @@ module _ (env : Env) where
       s₃ = ∨-zeroʳ (does (a₁ ≟ᵃ a₂))
     in
       p k (holds _ (subst s₁ s₂ s₃))
+
+just-inj : {v₁ v₂ : Val} → just v₁ ≡ just v₂ → v₁ ≡ v₂
+just-inj refl = refl
+
+j≡n⇒any : {v : Val} → {Any : Set} → just v ≡ nothing → Any
+j≡n⇒any ()
+
+read-insed : (a : Array) → (k : K) → (v : Val) → (read (write a k v) k) ≡ v
+read-insed a k v with lookup k (write a k v) | inspect (lookup k) (write a k v)
+... | nothing | [ eq ] = j≡n⇒any $ subst (_≡ nothing) (avl-insed k v a) eq
+... | just v′ | [ eq ] = sym $ just-inj $ subst (_≡ just v′) (avl-insed k v a) eq
+
+read-other : (a : Array) → (k₁ k₂ : K) → (v : Val) →
+  ¬ k₁ ≈ᵏ k₂ → (read (write a k₁ v) k₂) ≡ read a k₂
+
+read-other a k₁ k₂ v k₁≉k₂
+  with lookup k₂ (write a k₁ v) | inspect (lookup k₂) (write a k₁ v) |
+       lookup k₂ a              | inspect (lookup k₂) a
+
+... | nothing | [ eq₁ ] | nothing | [ eq₂ ] = refl
+
+... | nothing | [ eq₁ ] | just _  | [ eq₂ ] =
+  j≡n⇒any $ sym $ trans (sym eq₁) $ trans (avl-other k₂ k₁ v a (k₁≉k₂ ∘ symᵏ)) eq₂
+
+... | just _  | [ eq₁ ] | nothing | [ eq₂ ] =
+  j≡n⇒any $ trans (sym eq₁) $ trans (avl-other k₂ k₁ v a (k₁≉k₂ ∘ symᵏ)) eq₂
+
+... | just v′ | [ eq₁ ] | just v″ | [ eq₂ ] =
+  just-inj $ trans (sym eq₁) $ trans (avl-other k₂ k₁ v a (k₁≉k₂ ∘ symᵏ)) eq₂
+
+-- LFSC: row1
+row-≈ : (a : Array) → (k : K) → (v : Val) → Holds (equᶠ {{dsdᵛ}} (read (write a k v) k) v)
+row-≈ a k v with read (write a k v) k ≟ᵛ v | inspect (read (write a k v) k ≟ᵛ_) v
+... | true  because _     | [ eq ] = holds _ (cong does eq)
+... | false because ofⁿ p | _      rewrite read-insed a k v = contradiction reflᵛ p
+
+-- LFSC: row
+row-≉ : (a : Array) → (k₁ k₂ : K) → (v : Val) →
+  Holds (notᶠ (equᶠ {{dsdᵏ}} k₁ k₂)) →
+  Holds (equᶠ {{dsdᵛ}} (read (write a k₁ v) k₂) (read a k₂))
+
+row-≉ a k₁ k₂ v (holds _ h)
+  with read (write a k₁ v) k₂ ≟ᵛ read a k₂ | inspect (read (write a k₁ v) k₂ ≟ᵛ_) (read a k₂)
+
+... | true  because _     | [ eq ] = holds _ (cong does eq)
+... | false because ofⁿ p | _      with k₁ ≟ᵏ k₂
+... | false because ofⁿ q rewrite read-other a k₁ k₂ v q = contradiction reflᵛ p
+
+-- LFSC: negativerow
+¬-row-≉ : (a : Array) → (k₁ k₂ : K) → (v : Val) →
+  Holds (notᶠ (equᶠ {{dsdᵛ}} (read (write a k₁ v) k₂) (read a k₂))) →
+  Holds (equᶠ {{dsdᵏ}} k₁ k₂)
+
+¬-row-≉ a k₁ k₂ v (holds _ h) with does (k₁ ≟ᵏ k₂) | inspect does (k₁ ≟ᵏ k₂)
+... | true  | [ eq ] = holds _ eq
+... | false | [ eq ] with (holds _ h′) ← row-≉ a k₁ k₂ v (holds _ (f⇒not-t eq)) =
+  contradiction h′ (not-¬ (not-t⇒f h))
