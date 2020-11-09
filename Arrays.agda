@@ -6,28 +6,26 @@ module Arrays (stoᵏ : STO 0ℓ 0ℓ 0ℓ) (dsdᵛ : DSD 0ℓ 0ℓ)
 
 dsdᵏ = STO.decSetoid stoᵏ
 
-open import Data.Bool using (Bool ; true ; false ; _∨_ ; not)
+open import Data.Bool using (true ; false ; _∨_ ; not)
 open import Data.Bool.Properties using (∨-zeroˡ ; ∨-zeroʳ ; not-¬)
 open import Data.List using (List ; [] ; _∷_ ; map)
-open import Data.List.Properties using () renaming (≡-dec to ≡-decˡ)
 open import Data.List.Membership.DecSetoid dsdᵏ using (_∈_ ; _∉_ ; _∈?_)
 open import Data.List.Relation.Unary.Any using (here ; there)
 
 open import Data.List.Relation.Unary.Linked
   using () renaming ([] to []ᴸ ; [-] to [-]ᴸ ; _∷_ to _∷ᴸ_)
 
-open import Data.Maybe using (Maybe ; just ; nothing)
-open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂ ; Σ ; ∃)
-open import Data.Product.Properties using () renaming (≡-dec to ≡-decᵖ)
+open import Data.Maybe using (just ; nothing)
+open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂ ; ∃)
 open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Tree.AVL stoᵏ using (tree)
 
 open import Data.Tree.AVL.Indexed stoᵏ
-  using (Tree ; K&_ ; const ; ⊥⁺<[_]<⊤⁺) renaming (lookup to lookup′)
+  using (Tree ; K&_ ; ⊥⁺<[_]<⊤⁺) renaming (lookup to lookup′)
 
-open import Data.Tree.AVL.Map stoᵏ using (Map ; empty ; lookup ; insert)
+open import Data.Tree.AVL.Map stoᵏ using (Map ; lookup ; insert)
 
-open import Function using (id ; _$_ ; _∘_)
+open import Function using (_$_ ; _∘_)
 
 open import Relation.Binary.Definitions using (tri< ; tri≈ ; tri>)
 
@@ -35,10 +33,10 @@ open import Relation.Binary.PropositionalEquality
   using (_≡_ ; _≢_ ; refl ; sym ; ≢-sym ; trans ; cong ; subst ; inspect ; [_])
 
 open import Relation.Nullary using (Dec ; _because_ ; does ; ofʸ ; ofⁿ ; ¬_)
-open import Relation.Nullary.Negation using (contraposition ; contradiction)
+open import Relation.Nullary.Negation using (contradiction)
 
 open DSD dsdᵏ using () renaming (
-    Carrier to K ; _≈_ to _≈ᵏ_ ; _≟_ to _≟ᵏ_ ; refl to reflᵏ ; sym to symᵏ ; trans to transᵏ
+    Carrier to Key ; _≈_ to _≈ᵏ_ ; _≟_ to _≟ᵏ_ ; refl to reflᵏ ; sym to symᵏ ; trans to transᵏ
   )
 
 open DSD dsdᵛ using () renaming (
@@ -60,11 +58,11 @@ Array : Set
 Array = Map Val
 
 -- LFSC: write
-write : Array → K → Val → Array
+write : Array → Key → Val → Array
 write a k v = insert k v a
 
 -- LFSC: read
-read : Array → K → Val
+read : Array → Key → Val
 read a k with lookup k a
 ... | nothing = defᵛ
 ... | just v  = v
@@ -72,39 +70,39 @@ read a k with lookup k a
 flatten : Array → List (K& V)
 flatten (tree t) = flat t
 
-write′ : List (K& V) → K → Val → List (K& V)
+write′ : List (K& V) → Key → Val → List (K& V)
 write′ kvs k v = put k (λ _ → v) kvs
 
-read′ : List (K& V) → K → Val
+read′ : List (K& V) → Key → Val
 read′ kvs k with get k kvs
 ... | nothing = defᵛ
 ... | just v  = v
 
-insert≡put : ∀ {h} → (k : K) → (v : Val) → (t : Tree _ _ _ h) →
+insert≡put : ∀ {h} → (k : Key) → (v : Val) → (t : Tree _ _ _ h) →
   flatten (insert k v (tree t)) ≡ put k (λ _ → v) (flat t)
 
 insert≡put k v t = insert′≡put k (λ _ → v) t ⊥⁺<[ k ]<⊤⁺
 
-lookup≡get : ∀ {h} → (k : K) → (t : Tree _ _ _ h) → lookup k (tree t) ≡ get k (flat t)
+lookup≡get : ∀ {h} → (k : Key) → (t : Tree _ _ _ h) → lookup k (tree t) ≡ get k (flat t)
 lookup≡get k t = lookup′≡get k t ⊥⁺<[ k ]<⊤⁺
 
-write≡write′ : (a : Array) → (k : K) → (v : Val) → flatten (write a k v) ≡ write′ (flatten a) k v
+write≡write′ : (a : Array) → (k : Key) → (v : Val) → flatten (write a k v) ≡ write′ (flatten a) k v
 write≡write′ (tree t) k v = insert≡put k v t
 
-read≡read′ : (a : Array) → (k : K) → read a k ≡ read′ (flatten a) k
+read≡read′ : (a : Array) → (k : Key) → read a k ≡ read′ (flatten a) k
 read≡read′ (tree t) k rewrite lookup≡get k t with get k (flat t)
 ... | nothing = refl
 ... | just _  = refl
 
-lookup-insed : (a : Array) → (k : K) → (v : Val) → lookup k (insert k v a) ≡ just v
+lookup-insed : (a : Array) → (k : Key) → (v : Val) → lookup k (insert k v a) ≡ just v
 lookup-insed a k v = avl-insed k v a
 
-lookup-other : (a : Array) → (k′ k : K) → (v : Val) → ¬ k′ ≈ᵏ k →
+lookup-other : (a : Array) → (k′ k : Key) → (v : Val) → ¬ k′ ≈ᵏ k →
   lookup k (insert k′ v a) ≡ lookup k a
 
 lookup-other a k′ k v k₁≉k₂ = avl-other k k′ v a (k₁≉k₂ ∘ symᵏ)
 
-keys : List (K& V) → List K
+keys : List (K& V) → List Key
 keys = map proj₁
 
 read′-def : ∀ {k kvs} → k ∉ keys kvs → read′ kvs k ≈ᵛ defᵛ
@@ -129,7 +127,7 @@ read′-≈ {k₁} {k₂} ((k′ , v′) ∷ kvs′) p with compᵏ k′ k₁ | 
 ... | tri> _ _ q | tri≈ _ _ r = contradiction (proj₂ <-resp-≈ᵏ p q) r
 ... | tri> _ _ _ | tri> _ _ _ = reflᵛ
 
-match-keys : (ks : List K) → (kvs₁ kvs₂ : List (K& V)) →
+match-keys : (ks : List Key) → (kvs₁ kvs₂ : List (K& V)) →
   (∀ k → k ∈ ks → read′ kvs₁ k ≈ᵛ read′ kvs₂ k) ⊎
   (∃ λ k → ¬ read′ kvs₁ k ≈ᵛ read′ kvs₂ k)
 
@@ -230,7 +228,7 @@ module _ (env : Env) where
 
   -- LFSC: ext
   exten : (a₁ a₂ : Array) →
-    ((k : K) →
+    ((k : Key) →
       Holds (orᶠ (equᶠ {{array-dsd}} a₁ a₂) (notᶠ (equᶠ {{dsdᵛ}} (read a₁ k) (read a₂ k)))) →
       Holdsᶜ env []) →
     Holdsᶜ env []
@@ -252,28 +250,14 @@ module _ (env : Env) where
     in
       p k (holds _ (subst s₁ s₂ s₃))
 
-just-inj : {v₁ v₂ : Val} → just v₁ ≡ just v₂ → v₁ ≡ v₂
-just-inj refl = refl
-
-j≡n⇒any : {v : Val} → {Any : Set} → just v ≡ nothing → Any
-j≡n⇒any ()
-
-read-insed : (a : Array) → (k : K) → (v : Val) → (read (write a k v) k) ≡ v
-read-insed a k v rewrite lookup-insed a k v = refl
-
-read-other : (a : Array) → (k₁ k₂ : K) → (v : Val) →
-  ¬ k₁ ≈ᵏ k₂ → (read (write a k₁ v) k₂) ≡ read a k₂
-
-read-other a k₁ k₂ v k₁≉k₂ rewrite lookup-other a k₁ k₂ v k₁≉k₂ = refl
-
 -- LFSC: row1
-row-≈ : (a : Array) → (k : K) → (v : Val) → Holds (equᶠ {{dsdᵛ}} (read (write a k v) k) v)
+row-≈ : (a : Array) → (k : Key) → (v : Val) → Holds (equᶠ {{dsdᵛ}} (read (write a k v) k) v)
 row-≈ a k v with read (write a k v) k ≟ᵛ v | inspect (read (write a k v) k ≟ᵛ_) v
 ... | true  because _     | [ eq ] = holds _ (cong does eq)
-... | false because ofⁿ p | _      rewrite read-insed a k v = contradiction reflᵛ p
+... | false because ofⁿ p | _      rewrite lookup-insed a k v = contradiction reflᵛ p
 
 -- LFSC: row
-row-≉ : (a : Array) → (k₁ k₂ : K) → (v : Val) →
+row-≉ : (a : Array) → (k₁ k₂ : Key) → (v : Val) →
   Holds (notᶠ (equᶠ {{dsdᵏ}} k₁ k₂)) →
   Holds (equᶠ {{dsdᵛ}} (read (write a k₁ v) k₂) (read a k₂))
 
@@ -282,10 +266,10 @@ row-≉ a k₁ k₂ v (holds _ h)
 
 ... | true  because _     | [ eq ] = holds _ (cong does eq)
 ... | false because ofⁿ p | _      with k₁ ≟ᵏ k₂
-... | false because ofⁿ q rewrite read-other a k₁ k₂ v q = contradiction reflᵛ p
+... | false because ofⁿ q rewrite lookup-other a k₁ k₂ v q = contradiction reflᵛ p
 
 -- LFSC: negativerow
-¬-row-≉ : (a : Array) → (k₁ k₂ : K) → (v : Val) →
+¬-row-≉ : (a : Array) → (k₁ k₂ : Key) → (v : Val) →
   Holds (notᶠ (equᶠ {{dsdᵛ}} (read (write a k₁ v) k₂) (read a k₂))) →
   Holds (equᶠ {{dsdᵏ}} k₁ k₂)
 
