@@ -96,6 +96,14 @@ read≡read′ (tree t) k rewrite lookup≡get k t with get k (flat t)
 ... | nothing = refl
 ... | just _  = refl
 
+lookup-insed : (a : Array) → (k : K) → (v : Val) → lookup k (insert k v a) ≡ just v
+lookup-insed a k v = avl-insed k v a
+
+lookup-other : (a : Array) → (k′ k : K) → (v : Val) → ¬ k′ ≈ᵏ k →
+  lookup k (insert k′ v a) ≡ lookup k a
+
+lookup-other a k′ k v k₁≉k₂ = avl-other k k′ v a (k₁≉k₂ ∘ symᵏ)
+
 keys : List (K& V) → List K
 keys = map proj₁
 
@@ -251,27 +259,12 @@ j≡n⇒any : {v : Val} → {Any : Set} → just v ≡ nothing → Any
 j≡n⇒any ()
 
 read-insed : (a : Array) → (k : K) → (v : Val) → (read (write a k v) k) ≡ v
-read-insed a k v with lookup k (write a k v) | inspect (lookup k) (write a k v)
-... | nothing | [ eq ] = j≡n⇒any $ subst (_≡ nothing) (avl-insed k v a) eq
-... | just v′ | [ eq ] = sym $ just-inj $ subst (_≡ just v′) (avl-insed k v a) eq
+read-insed a k v rewrite lookup-insed a k v = refl
 
 read-other : (a : Array) → (k₁ k₂ : K) → (v : Val) →
   ¬ k₁ ≈ᵏ k₂ → (read (write a k₁ v) k₂) ≡ read a k₂
 
-read-other a k₁ k₂ v k₁≉k₂
-  with lookup k₂ (write a k₁ v) | inspect (lookup k₂) (write a k₁ v) |
-       lookup k₂ a              | inspect (lookup k₂) a
-
-... | nothing | [ eq₁ ] | nothing | [ eq₂ ] = refl
-
-... | nothing | [ eq₁ ] | just _  | [ eq₂ ] =
-  j≡n⇒any $ sym $ trans (sym eq₁) $ trans (avl-other k₂ k₁ v a (k₁≉k₂ ∘ symᵏ)) eq₂
-
-... | just _  | [ eq₁ ] | nothing | [ eq₂ ] =
-  j≡n⇒any $ trans (sym eq₁) $ trans (avl-other k₂ k₁ v a (k₁≉k₂ ∘ symᵏ)) eq₂
-
-... | just v′ | [ eq₁ ] | just v″ | [ eq₂ ] =
-  just-inj $ trans (sym eq₁) $ trans (avl-other k₂ k₁ v a (k₁≉k₂ ∘ symᵏ)) eq₂
+read-other a k₁ k₂ v k₁≉k₂ rewrite lookup-other a k₁ k₂ v k₁≉k₂ = refl
 
 -- LFSC: row1
 row-≈ : (a : Array) → (k : K) → (v : Val) → Holds (equᶠ {{dsdᵛ}} (read (write a k v) k) v)
