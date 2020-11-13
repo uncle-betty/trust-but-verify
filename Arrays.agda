@@ -1,10 +1,14 @@
-open import Level using (0ℓ)
-open import Relation.Binary.Bundles using () renaming (DecSetoid to DSD ; StrictTotalOrder to STO)
+open import Data.Nat using (ℕ)
 
-module Arrays (stoᵏ : STO 0ℓ 0ℓ 0ℓ) (dsdᵛ : DSD 0ℓ 0ℓ)
-  (defᵏ : STO.Carrier stoᵏ) (defᵛ : DSD.Carrier dsdᵛ) where
+module Arrays (bitsᵏ bitsᵛ : ℕ) where
 
-dsdᵏ = STO.decSetoid stoᵏ
+open import BitVec using (BitVec ; bv-dsd ; bv-sto ; null)
+
+stoᵏ = bv-sto {bitsᵏ}
+dsdᵏ = bv-dsd {bitsᵏ}
+dsdᵛ = bv-dsd {bitsᵛ}
+defᵏ = null {bitsᵏ}
+defᵛ = null {bitsᵛ}
 
 open import Data.Bool using (true ; false ; _∨_ ; not)
 open import Data.Bool.Properties using (∨-zeroˡ ; ∨-zeroʳ ; not-¬)
@@ -27,7 +31,10 @@ open import Data.Tree.AVL.Map stoᵏ using (Map ; lookup ; insert)
 
 open import Function using (_$_ ; _∘_)
 
-open import Relation.Binary.Definitions using (tri< ; tri≈ ; tri>)
+open import Level using (0ℓ)
+
+open import Relation.Binary
+  using (tri< ; tri≈ ; tri>) renaming (DecSetoid to DSD ; StrictTotalOrder to STO)
 
 open import Relation.Binary.PropositionalEquality
   using (_≡_ ; _≢_ ; refl ; sym ; ≢-sym ; trans ; cong ; subst ; inspect ; [_])
