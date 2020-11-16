@@ -19,7 +19,7 @@ open import Data.List.Relation.Unary.Any using (here ; there)
 open import Data.List.Relation.Unary.Linked
   using () renaming ([] to []ᴸ ; [-] to [-]ᴸ ; _∷_ to _∷ᴸ_)
 
-open import Data.Maybe using (just ; nothing)
+open import Data.Maybe using (Maybe ; just ; nothing)
 open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂ ; ∃)
 open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Tree.AVL stoᵏ using (tree)
@@ -28,6 +28,7 @@ open import Data.Tree.AVL.Indexed stoᵏ
   using (Tree ; K&_ ; ⊥⁺<[_]<⊤⁺) renaming (lookup to lookup′)
 
 open import Data.Tree.AVL.Map stoᵏ using (Map ; lookup ; insert)
+open import Data.Vec using () renaming ([] to []ᵛ ; _∷_ to _∷ᵛ_)
 
 open import Function using (_$_ ; _∘_)
 
@@ -284,3 +285,46 @@ row-≉ a k₁ k₂ v (holds _ h)
 ... | true  | [ eq ] = holds _ eq
 ... | false | [ eq ] with (holds _ h′) ← row-≉ a k₁ k₂ v (holds _ (f⇒not-t eq)) =
   contradiction h′ (not-¬ (not-t⇒f h))
+
+data Trie : Set where
+  node : Maybe Trie → Maybe Trie → Maybe Val → Trie
+
+lookupᵗ : {n : ℕ} → BitVec n → Maybe Trie → Maybe Val
+lookupᵗ _             nothing                = nothing
+lookupᵗ []ᵛ           (just (node _  _  mv)) = mv
+lookupᵗ (true  ∷ᵛ bv) (just (node ml _  _ )) = lookupᵗ bv ml
+lookupᵗ (false ∷ᵛ bv) (just (node _  mr _ )) = lookupᵗ bv mr
+
+insertᵗ : {n : ℕ} → BitVec n → Val → Maybe Trie → Maybe Trie
+insertᵗ []ᵛ           v nothing                = just $ node nothing nothing (just v)
+insertᵗ (true  ∷ᵛ bv) v nothing                = just $ let t = insertᵗ bv v nothing in node t       nothing nothing
+insertᵗ (false ∷ᵛ bv) v nothing                = just $ let t = insertᵗ bv v nothing in node nothing t       nothing
+insertᵗ []ᵛ           v (just (node ml mr _ )) = just $ node ml mr (just v)
+insertᵗ (true  ∷ᵛ bv) v (just (node ml mr mv)) = just $ let t = insertᵗ bv v ml      in node t       mr      mv
+insertᵗ (false ∷ᵛ bv) v (just (node ml mr mv)) = just $ let t = insertᵗ bv v mr      in node ml      t       mv
+
+insed : {n : ℕ} → (mt : Maybe Trie) → (k : BitVec n) → (v : Val) → lookupᵗ k (insertᵗ k v mt) ≡ just v
+insed nothing               []ᵛ           v = refl
+insed nothing               (true  ∷ᵛ bv) v = insed nothing bv v
+insed nothing               (false ∷ᵛ bv) v = insed nothing bv v
+insed (just (node _  _  _)) []ᵛ           v = refl
+insed (just (node ml _  _)) (true  ∷ᵛ bv) v = insed ml bv v
+insed (just (node _  mr _)) (false ∷ᵛ bv) v = insed mr bv v
+
+open DSD using () renaming (_≈_ to _≈ˣ_ ; refl to reflˣ)
+
+trim-≉ : ∀ {n b} → {bv₁ bv₂ : BitVec n} → ¬ _≈ˣ_ bv-dsd (b ∷ᵛ bv₁) (b ∷ᵛ bv₂) → ¬ _≈ˣ_ bv-dsd bv₁ bv₂
+trim-≉ {b = b} {bv₁} {bv₂} p n = p $ cong (b ∷ᵛ_) n
+
+other : {n : ℕ} → (mt : Maybe Trie) → (k₁ k₂ : BitVec n) → (v : Val) → ¬ _≈ˣ_ bv-dsd k₁ k₂ →
+  lookupᵗ k₂ (insertᵗ k₁ v mt) ≡ lookupᵗ k₂ mt
+
+other _                     []ᵛ            []ᵛ            _ k₁≉k₂ = contradiction (reflˣ bv-dsd) k₁≉k₂
+other nothing               (true  ∷ᵛ bv₁) (true  ∷ᵛ bv₂) v k₁≉k₂ = other nothing bv₁ bv₂ v (trim-≉ k₁≉k₂)
+other (just (node ml _  _)) (true  ∷ᵛ bv₁) (true  ∷ᵛ bv₂) v k₁≉k₂ = other ml      bv₁ bv₂ v (trim-≉ k₁≉k₂)
+other nothing               (true  ∷ᵛ _)   (false ∷ᵛ _)   _ _     = refl
+other (just (node _  mr _)) (true  ∷ᵛ _)   (false ∷ᵛ _)   _ _     = refl
+other nothing               (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _     = refl
+other (just (node ml _  _)) (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _     = refl
+other nothing               (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v k₁≉k₂ = other nothing bv₁ bv₂ v (trim-≉ k₁≉k₂)
+other (just (node _  mr _)) (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v k₁≉k₂ = other mr      bv₁ bv₂ v (trim-≉ k₁≉k₂)
