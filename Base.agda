@@ -5,6 +5,9 @@ open import Data.Bool using (Bool ; true ; false ; not)
 open import Data.Bool.Properties
   using (not-¬) renaming (≡-setoid to bool-sd ; ≡-decSetoid to bool-dsd)
 
+open import Data.Product using (∃ ; _,_)
+open import Data.Sum using (_⊎_ ; inj₁; inj₂)
+
 open import Function using (_$_ ; _∘_ ; it)
 
 open import Level using (0ℓ)
@@ -128,39 +131,24 @@ cong :
 
 cong h₁ h₂ = holds _ $ ≈-does {it} $ equᶠ-≈ h₁ (equᶠ-≈ h₂)
 
-gen-bool₁ : {sdᵗ : SD 0ℓ 0ℓ} → {f₁ f₂ : Bool → SD.Carrier sdᵗ} →
-  SD._≈_ sdᵗ (f₁ true)  (f₂ true)  →
-  SD._≈_ sdᵗ (f₁ false) (f₂ false) →
-  (({x₁ x₂} : Bool) → x₁ ≡ x₂ → SD._≈_ sdᵗ (f₁ x₁) (f₂ x₂))
+module _ {T : Set} (T-≈ : T → T → Set) (T-≟ : Decidable T-≈) where
+  bool-func-≟ : (f₁ f₂ : Bool → T) → (∀ b → T-≈ (f₁ b) (f₂ b)) ⊎ (∃ λ b → ¬ T-≈ (f₁ b) (f₂ b))
 
-gen-bool₁ p₁ _  {true}  refl′ = p₁
-gen-bool₁ _  p₂ {false} refl′ = p₂
+  bool-func-≟ f₁ f₂ with T-≟ (f₁ true) (f₂ true)
+  ... | false because ofⁿ p = inj₂ (true , p)
+  ... | true  because ofʸ p with T-≟ (f₁ false) (f₂ false)
+  ... | false because ofⁿ q = inj₂ (false , q)
+  ... | true  because ofʸ q = inj₁ λ { true  → p ; false → q }
 
-gen-bool₂ : {sdᵗ : SD 0ℓ 0ℓ} → {f₁ f₂ : Bool → SD.Carrier sdᵗ} →
-  ¬ (SD._≈_ sdᵗ (f₁ true) (f₂ true)) →
-  ¬ (({x₁ x₂} : Bool) → x₁ ≡ x₂ → SD._≈_ sdᵗ (f₁ x₁) (f₂ x₂))
+bool-func-dec : (dsdᵗ : DSD 0ℓ 0ℓ) → (f₁ f₂ : Bool → Car dsdᵗ) →
+  Dec ({b₁ b₂ : Bool} → b₁ ≡ b₂ → _≈_ dsdᵗ (f₁ b₁) (f₂ b₂))
 
-gen-bool₂ p n = p (n {true} refl′)
-
-gen-bool₃ : {sdᵗ : SD 0ℓ 0ℓ} → {f₁ f₂ : Bool → SD.Carrier sdᵗ} →
-  ¬ (SD._≈_ sdᵗ (f₁ false) (f₂ false)) →
-  ¬ (({x₁ x₂} : Bool) → x₁ ≡ x₂ → SD._≈_ sdᵗ (f₁ x₁) (f₂ x₂))
-
-gen-bool₃ p n = p (n {false} refl′)
-
-≟-bool : (dsdᵗ : DSD 0ℓ 0ℓ) → (f₁ f₂ : Bool → Car dsdᵗ) →
-  Dec ({x₁ x₂ : Bool} → x₁ ≡ x₂ → _≈_ dsdᵗ (f₁ x₁) (f₂ x₂))
-
-≟-bool dsdᵗ f₁ f₂
-  with _≟_ dsdᵗ (f₁ true) (f₂ true) | _≟_ dsdᵗ (f₁ false) (f₂ false)
-
-... | yes p₁ | yes p₂ = yes (gen-bool₁ {setoid dsdᵗ} {f₁} {f₂} p₁ p₂)
-... | yes p₁ | no  p₂ = no  (gen-bool₃ {setoid dsdᵗ} {f₁} {f₂} p₂)
-... | no  p₁ | yes p₂ = no  (gen-bool₂ {setoid dsdᵗ} {f₁} {f₂} p₁)
-... | no  p₁ | no  p₂ = no  (gen-bool₂ {setoid dsdᵗ} {f₁} {f₂} p₁)
+bool-func-dec dsdᵗ f₁ f₂ with bool-func-≟ (_≈_ dsdᵗ) (_≟_ dsdᵗ) f₁ f₂
+... | inj₁ p       = true  because ofʸ λ { {b₁} {b₂} refl′ → p b₁ }
+... | inj₂ (b , p) = false because ofⁿ λ n → p $ n {b} {b} refl′
 
 bool-wrapper : {dsdᵗ : DSD 0ℓ 0ℓ} → Wrapper bool-dsd dsdᵗ
 bool-wrapper {dsdᵗ} = record {
-    decide-eq = ≟-bool dsdᵗ ;
+    decide-eq = bool-func-dec dsdᵗ ;
     congruence = λ { {f} {x₁} {x₂} refl′ → DSD.refl dsdᵗ }
   }
