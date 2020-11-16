@@ -7,6 +7,8 @@ open import Data.Bool.Properties using () renaming (
   )
 
 open import Data.Nat using (ℕ ; zero ; suc)
+open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂ ; ∃)
+open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Vec using (Vec ; [] ; _∷_ ; replicate)
 open import Data.Vec.Properties using (≡-dec)
 
@@ -163,3 +165,30 @@ bv-sto {n} = record {
 
 null : {n : ℕ} → BitVec n
 null = replicate false
+
+module _ {T : Set} (T-≈ : T → T → Set) (T-≟ : Decidable T-≈) where
+  split : {n↓ : ℕ} → (f : BitVec (suc n↓) → T) → Bool → BitVec n↓ → T
+  split f b bv = f (b ∷ bv)
+
+  join : {n↓ : ℕ} → (f₁ f₂ : BitVec (suc n↓) → T) →
+    (∀ bv → T-≈ (f₁ (true ∷ bv)) (f₂ (true ∷ bv))) →
+    (∀ bv → T-≈ (f₁ (false ∷ bv)) (f₂ (false ∷ bv))) →
+    (∀ bv → T-≈ (f₁ bv) (f₂ bv))
+
+  join f₁ f₂ p q (true ∷ bv)  = p bv
+  join f₁ f₂ p q (false ∷ bv) = q bv
+
+  bv-func-≟ : {n↑ n↓ : ℕ} → (f₁ f₂ : BitVec n↓ → T) →
+    (∀ bv → T-≈ (f₁ bv) (f₂ bv)) ⊎ (∃ λ bv → ¬ T-≈ (f₁ bv) (f₂ bv))
+
+  bv-func-≟ {n↑} {zero} f₁ f₂ with T-≟ (f₁ []) (f₂ [])
+  ... | true  because ofʸ p = inj₁ λ { [] → p }
+  ... | false because ofⁿ p = inj₂ ([] , p)
+
+  bv-func-≟ {n↑} {suc n↓} f₁ f₂
+    with bv-func-≟ {suc n↑} {n↓} (split f₁ true) (split f₂ true)
+  ... | inj₂ (bv , p) = inj₂ (true ∷ bv , p)
+  ... | inj₁ qᵗ
+    with bv-func-≟ {suc n↑} {n↓} (split f₁ false) (split f₂ false)
+  ... | inj₂ (bv , p) = inj₂ (false ∷ bv , p)
+  ... | inj₁ qᶠ = inj₁ (join f₁ f₂ qᵗ qᶠ)
