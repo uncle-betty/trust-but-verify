@@ -27,6 +27,8 @@ open import Relation.Binary.PropositionalEquality.Properties using (decSetoid)
 open import Relation.Nullary using (Dec ; _because_ ; ofʸ ; ofⁿ ; ¬_)
 open import Relation.Nullary.Negation using (contradiction)
 
+open DSD using () renaming (Carrier to Car ; _≈_ to _≈ˣ_ ; _≟_ to _≟ˣ_)
+
 BitVec : ℕ → Set
 BitVec = Vec Bool
 
@@ -178,17 +180,24 @@ module _ {T : Set} (T-≈ : T → T → Set) (T-≟ : Decidable T-≈) where
   join f₁ f₂ p q (true ∷ bv)  = p bv
   join f₁ f₂ p q (false ∷ bv) = q bv
 
-  bv-func-≟ : {n↑ n↓ : ℕ} → (f₁ f₂ : BitVec n↓ → T) →
+  bv-func-≋ : {n↑ n↓ : ℕ} → (f₁ f₂ : BitVec n↓ → T) →
     (∀ bv → T-≈ (f₁ bv) (f₂ bv)) ⊎ (∃ λ bv → ¬ T-≈ (f₁ bv) (f₂ bv))
 
-  bv-func-≟ {n↑} {zero} f₁ f₂ with T-≟ (f₁ []) (f₂ [])
+  bv-func-≋ {n↑} {zero} f₁ f₂ with T-≟ (f₁ []) (f₂ [])
   ... | true  because ofʸ p = inj₁ λ { [] → p }
   ... | false because ofⁿ p = inj₂ ([] , p)
 
-  bv-func-≟ {n↑} {suc n↓} f₁ f₂
-    with bv-func-≟ {suc n↑} {n↓} (split f₁ true) (split f₂ true)
+  bv-func-≋ {n↑} {suc n↓} f₁ f₂
+    with bv-func-≋ {suc n↑} {n↓} (split f₁ true) (split f₂ true)
   ... | inj₂ (bv , p) = inj₂ (true ∷ bv , p)
   ... | inj₁ qᵗ
-    with bv-func-≟ {suc n↑} {n↓} (split f₁ false) (split f₂ false)
+    with bv-func-≋ {suc n↑} {n↓} (split f₁ false) (split f₂ false)
   ... | inj₂ (bv , p) = inj₂ (false ∷ bv , p)
   ... | inj₁ qᶠ = inj₁ (join f₁ f₂ qᵗ qᶠ)
+
+bv-func-≟ : {n : ℕ} → (dsdᵗ : DSD 0ℓ 0ℓ) → (f₁ f₂ : BitVec n → Car dsdᵗ) →
+  Dec ({bv₁ bv₂ : BitVec n} → bv₁ ≡ bv₂ → _≈ˣ_ dsdᵗ (f₁ bv₁) (f₂ bv₂))
+
+bv-func-≟ dsdᵗ f₁ f₂ with bv-func-≋ (_≈ˣ_ dsdᵗ) (_≟ˣ_ dsdᵗ) {0} f₁ f₂
+... | inj₁ p        = true  because ofʸ λ { {bv₁} {bv₂} refl → p bv₁ }
+... | inj₂ (bv , p) = false because ofⁿ λ n → p $ n {bv} {bv} refl

@@ -132,23 +132,23 @@ cong :
 cong h₁ h₂ = holds _ $ ≈-does {it} $ equᶠ-≈ h₁ (equᶠ-≈ h₂)
 
 module _ {T : Set} (T-≈ : T → T → Set) (T-≟ : Decidable T-≈) where
-  bool-func-≟ : (f₁ f₂ : Bool → T) → (∀ b → T-≈ (f₁ b) (f₂ b)) ⊎ (∃ λ b → ¬ T-≈ (f₁ b) (f₂ b))
+  bool-func-≋ : (f₁ f₂ : Bool → T) → (∀ b → T-≈ (f₁ b) (f₂ b)) ⊎ (∃ λ b → ¬ T-≈ (f₁ b) (f₂ b))
 
-  bool-func-≟ f₁ f₂ with T-≟ (f₁ true) (f₂ true)
+  bool-func-≋ f₁ f₂ with T-≟ (f₁ true) (f₂ true)
   ... | false because ofⁿ p = inj₂ (true , p)
   ... | true  because ofʸ p with T-≟ (f₁ false) (f₂ false)
   ... | false because ofⁿ q = inj₂ (false , q)
   ... | true  because ofʸ q = inj₁ λ { true  → p ; false → q }
 
-bool-func-dec : (dsdᵗ : DSD 0ℓ 0ℓ) → (f₁ f₂ : Bool → Car dsdᵗ) →
+bool-func-≟ : (dsdᵗ : DSD 0ℓ 0ℓ) → (f₁ f₂ : Bool → Car dsdᵗ) →
   Dec ({b₁ b₂ : Bool} → b₁ ≡ b₂ → _≈_ dsdᵗ (f₁ b₁) (f₂ b₂))
 
-bool-func-dec dsdᵗ f₁ f₂ with bool-func-≟ (_≈_ dsdᵗ) (_≟_ dsdᵗ) f₁ f₂
+bool-func-≟ dsdᵗ f₁ f₂ with bool-func-≋ (_≈_ dsdᵗ) (_≟_ dsdᵗ) f₁ f₂
 ... | inj₁ p       = true  because ofʸ λ { {b₁} {b₂} refl′ → p b₁ }
 ... | inj₂ (b , p) = false because ofⁿ λ n → p $ n {b} {b} refl′
 
 bool-wrapper : {dsdᵗ : DSD 0ℓ 0ℓ} → Wrapper bool-dsd dsdᵗ
 bool-wrapper {dsdᵗ} = record {
-    decide-eq = bool-func-dec dsdᵗ ;
+    decide-eq = bool-func-≟ dsdᵗ ;
     congruence = λ { {f} {x₁} {x₂} refl′ → DSD.refl dsdᵗ }
   }
