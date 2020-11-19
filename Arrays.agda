@@ -2,7 +2,7 @@ open import Data.Nat using (ℕ)
 
 module Arrays (bitsᵏ bitsᵛ : ℕ) where
 
-open import BitVec using (BitVec ; bv-dsd ; bv-sto ; null)
+open import BitVec using (BitVec ; bv-dsd ; bv-sto ; bv-func-≟ ; null)
 
 stoᵏ = bv-sto {bitsᵏ}
 dsdᵏ = bv-dsd {bitsᵏ}
@@ -20,6 +20,7 @@ open import Data.List.Relation.Unary.Linked
   using () renaming ([] to []ᴸ ; [-] to [-]ᴸ ; _∷_ to _∷ᴸ_)
 
 open import Data.Maybe using (Maybe ; just ; nothing)
+open import Data.Nat using (zero ; suc ; _⊔_)
 open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂ ; ∃)
 open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Tree.AVL stoᵏ using (tree)
@@ -35,7 +36,7 @@ open import Function using (_$_ ; _∘_)
 open import Level using (0ℓ)
 
 open import Relation.Binary
-  using (tri< ; tri≈ ; tri>) renaming (DecSetoid to DSD ; StrictTotalOrder to STO)
+  using (tri< ; tri≈ ; tri> ; Decidable) renaming (DecSetoid to DSD ; StrictTotalOrder to STO)
 
 open import Relation.Binary.PropositionalEquality
   using (_≡_ ; _≢_ ; refl ; sym ; ≢-sym ; trans ; cong ; subst ; inspect ; [_])
@@ -286,45 +287,130 @@ row-≉ a k₁ k₂ v (holds _ h)
 ... | false | [ eq ] with (holds _ h′) ← row-≉ a k₁ k₂ v (holds _ (f⇒not-t eq)) =
   contradiction h′ (not-¬ (not-t⇒f h))
 
-data Trie : Set where
-  node : Maybe Trie → Maybe Trie → Maybe Val → Trie
+data Trie : ℕ → Set where
+  node : {h : ℕ} → Maybe (Trie h) → Maybe (Trie h) → Trie (suc h)
+  leaf : Val → Trie 0
 
-lookupᵗ : {n : ℕ} → BitVec n → Maybe Trie → Maybe Val
-lookupᵗ _             nothing                = nothing
-lookupᵗ []ᵛ           (just (node _  _  mv)) = mv
-lookupᵗ (true  ∷ᵛ bv) (just (node ml _  _ )) = lookupᵗ bv ml
-lookupᵗ (false ∷ᵛ bv) (just (node _  mr _ )) = lookupᵗ bv mr
+lookupᵗ : {h : ℕ} → BitVec h → Maybe (Trie h) → Maybe Val
+lookupᵗ _             nothing             = nothing
+lookupᵗ []ᵛ           (just (leaf v))     = just v
+lookupᵗ (true  ∷ᵛ bv) (just (node ml _))  = lookupᵗ bv ml
+lookupᵗ (false ∷ᵛ bv) (just (node _  mr)) = lookupᵗ bv mr
 
-insertᵗ : {n : ℕ} → BitVec n → Val → Maybe Trie → Maybe Trie
-insertᵗ []ᵛ           v nothing                = just $ node nothing nothing (just v)
-insertᵗ (true  ∷ᵛ bv) v nothing                = just $ let t = insertᵗ bv v nothing in node t       nothing nothing
-insertᵗ (false ∷ᵛ bv) v nothing                = just $ let t = insertᵗ bv v nothing in node nothing t       nothing
-insertᵗ []ᵛ           v (just (node ml mr _ )) = just $ node ml mr (just v)
-insertᵗ (true  ∷ᵛ bv) v (just (node ml mr mv)) = just $ let t = insertᵗ bv v ml      in node t       mr      mv
-insertᵗ (false ∷ᵛ bv) v (just (node ml mr mv)) = just $ let t = insertᵗ bv v mr      in node ml      t       mv
+insertᵗ : {h : ℕ} → BitVec h → Val → Maybe (Trie h) → Maybe (Trie h)
+insertᵗ []ᵛ           v nothing             = just $ leaf v
+insertᵗ (true  ∷ᵛ bv) v nothing             = just $ let t = insertᵗ bv v nothing in node t nothing
+insertᵗ (false ∷ᵛ bv) v nothing             = just $ let t = insertᵗ bv v nothing in node nothing t
+insertᵗ []ᵛ           v (just (leaf _))     = just $ leaf v
+insertᵗ (true  ∷ᵛ bv) v (just (node ml mr)) = just $ let t = insertᵗ bv v ml in node t mr
+insertᵗ (false ∷ᵛ bv) v (just (node ml mr)) = just $ let t = insertᵗ bv v mr in node ml t
 
-insed : {n : ℕ} → (mt : Maybe Trie) → (k : BitVec n) → (v : Val) → lookupᵗ k (insertᵗ k v mt) ≡ just v
-insed nothing               []ᵛ           v = refl
-insed nothing               (true  ∷ᵛ bv) v = insed nothing bv v
-insed nothing               (false ∷ᵛ bv) v = insed nothing bv v
-insed (just (node _  _  _)) []ᵛ           v = refl
-insed (just (node ml _  _)) (true  ∷ᵛ bv) v = insed ml bv v
-insed (just (node _  mr _)) (false ∷ᵛ bv) v = insed mr bv v
+insed : {h : ℕ} → (mt : Maybe (Trie h)) → (k : BitVec h) → (v : Val) →
+  lookupᵗ k (insertᵗ k v mt) ≡ just v
 
-open DSD using () renaming (_≈_ to _≈ˣ_ ; refl to reflˣ)
+insed nothing             []ᵛ           _ = refl
+insed nothing             (true  ∷ᵛ bv) v = insed nothing bv v
+insed nothing             (false ∷ᵛ bv) v = insed nothing bv v
+insed (just (leaf _))     []ᵛ           _ = refl
+insed (just (node ml _ )) (true  ∷ᵛ bv) v = insed ml bv v
+insed (just (node _  mr)) (false ∷ᵛ bv) v = insed mr bv v
+
+open DSD using () renaming (Carrier to Carˣ ; _≈_ to _≈ˣ_ ; _≟_ to _≟ˣ_ ; refl to reflˣ)
 
 trim-≉ : ∀ {n b} → {bv₁ bv₂ : BitVec n} → ¬ _≈ˣ_ bv-dsd (b ∷ᵛ bv₁) (b ∷ᵛ bv₂) → ¬ _≈ˣ_ bv-dsd bv₁ bv₂
 trim-≉ {b = b} {bv₁} {bv₂} p n = p $ cong (b ∷ᵛ_) n
 
-other : {n : ℕ} → (mt : Maybe Trie) → (k₁ k₂ : BitVec n) → (v : Val) → ¬ _≈ˣ_ bv-dsd k₁ k₂ →
+other : {h : ℕ} → (mt : Maybe (Trie h)) → (k₁ k₂ : BitVec h) → (v : Val) → ¬ _≈ˣ_ bv-dsd k₁ k₂ →
   lookupᵗ k₂ (insertᵗ k₁ v mt) ≡ lookupᵗ k₂ mt
 
-other _                     []ᵛ            []ᵛ            _ k₁≉k₂ = contradiction (reflˣ bv-dsd) k₁≉k₂
-other nothing               (true  ∷ᵛ bv₁) (true  ∷ᵛ bv₂) v k₁≉k₂ = other nothing bv₁ bv₂ v (trim-≉ k₁≉k₂)
-other (just (node ml _  _)) (true  ∷ᵛ bv₁) (true  ∷ᵛ bv₂) v k₁≉k₂ = other ml      bv₁ bv₂ v (trim-≉ k₁≉k₂)
-other nothing               (true  ∷ᵛ _)   (false ∷ᵛ _)   _ _     = refl
-other (just (node _  mr _)) (true  ∷ᵛ _)   (false ∷ᵛ _)   _ _     = refl
-other nothing               (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _     = refl
-other (just (node ml _  _)) (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _     = refl
-other nothing               (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v k₁≉k₂ = other nothing bv₁ bv₂ v (trim-≉ k₁≉k₂)
-other (just (node _  mr _)) (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v k₁≉k₂ = other mr      bv₁ bv₂ v (trim-≉ k₁≉k₂)
+other _                   []ᵛ            []ᵛ            _ k₁≉k₂ = contradiction (reflˣ bv-dsd) k₁≉k₂
+other nothing             (true  ∷ᵛ bv₁) (true  ∷ᵛ bv₂) v k₁≉k₂ = other nothing bv₁ bv₂ v (trim-≉ k₁≉k₂)
+other (just (node ml _ )) (true  ∷ᵛ bv₁) (true  ∷ᵛ bv₂) v k₁≉k₂ = other ml      bv₁ bv₂ v (trim-≉ k₁≉k₂)
+other nothing             (true  ∷ᵛ _)   (false ∷ᵛ _)   _ _     = refl
+other (just (node _  mr)) (true  ∷ᵛ _)   (false ∷ᵛ _)   _ _     = refl
+other nothing             (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _     = refl
+other (just (node ml _ )) (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _     = refl
+other nothing             (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v k₁≉k₂ = other nothing bv₁ bv₂ v (trim-≉ k₁≉k₂)
+other (just (node _  mr)) (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v k₁≉k₂ = other mr      bv₁ bv₂ v (trim-≉ k₁≉k₂)
+
+splitˡ : {h : ℕ} → {T : Set} → (f : Trie (suc h) → T) → Trie h → T
+splitˡ f t = f (node (just t) nothing)
+
+joinˡ : {h : ℕ} → {T : Set} → (T-≈ : T → T → Set) → (f₁ f₂ : Trie (suc h) → T) →
+  ¬ ({t₁ t₂ : Trie h} → t₁ ≡ t₂ → T-≈ (splitˡ f₁ t₁) (splitˡ f₂ t₂)) →
+  ¬ ({t₁ t₂ : Trie (suc h)} → t₁ ≡ t₂ → T-≈ (f₁ t₁) (f₂ t₂))
+
+joinˡ T-≈ f₁ f₂ p n = p $ λ { refl → n refl }
+
+splitʳ : {h : ℕ} → {T : Set} → (f : Trie (suc h) → T) → Trie h → T
+splitʳ f t = f (node nothing (just t))
+
+joinʳ : {h : ℕ} → {T : Set} → (T-≈ : T → T → Set) → (f₁ f₂ : Trie (suc h) → T) →
+  ¬ ({t₁ t₂ : Trie h} → t₁ ≡ t₂ → T-≈ (splitʳ f₁ t₁) (splitʳ f₂ t₂)) →
+  ¬ ({t₁ t₂ : Trie (suc h)} → t₁ ≡ t₂ → T-≈ (f₁ t₁) (f₂ t₂))
+
+joinʳ T-≈ f₁ f₂ p n = p $ λ { refl → n refl }
+
+split : {h : ℕ} → {T : Set} → (f : Trie (suc h) → T) → Trie h → Trie h → T
+split f tˡ tʳ = f (node (just tˡ) (just tʳ))
+
+join⁻ : {h : ℕ} → {T : Set} → (T-≈ : T → T → Set) → (f₁ f₂ : Trie (suc h) → T) →
+  ¬ ({l₁ l₂ : Trie h} → l₁ ≡ l₂ → {r₁ r₂ : Trie h} → r₁ ≡ r₂ →
+    T-≈ (split f₁ l₁ r₁) (split f₂ l₂ r₂)) →
+  ¬ ({t₁ t₂ : Trie (suc h)} → t₁ ≡ t₂ → T-≈ (f₁ t₁) (f₂ t₂))
+
+join⁻ T-≈ f₁ f₂ p n = p $ λ { {tˡ} refl {tʳ} refl → n refl }
+
+join⁺ : {h : ℕ} → {T : Set} → (T-≈ : T → T → Set) → (f₁ f₂ : Trie (suc h) → T) →
+  T-≈ (f₁ (node nothing nothing)) (f₂ (node nothing nothing)) →
+  ({t₁ t₂ : Trie h} → t₁ ≡ t₂ → T-≈ (splitˡ f₁ t₁) (splitˡ f₂ t₂)) →
+  ({t₁ t₂ : Trie h} → t₁ ≡ t₂ → T-≈ (splitʳ f₁ t₁) (splitʳ f₂ t₂)) →
+  ({l₁ l₂ : Trie h} → l₁ ≡ l₂ → {r₁ r₂ : Trie h} → r₁ ≡ r₂ →
+    T-≈ (split f₁ l₁ r₁) (split f₂ l₂ r₂)) →
+  ({t₁ t₂ : Trie (suc h)} → t₁ ≡ t₂ → T-≈ (f₁ t₁) (f₂ t₂))
+
+join⁺ T-≈ f₁ f₂ p q r s {node nothing   nothing}   refl = p
+join⁺ T-≈ f₁ f₂ p q r s {node (just tˡ) nothing}   refl = q refl
+join⁺ T-≈ f₁ f₂ p q r s {node nothing   (just tʳ)} refl = r refl
+join⁺ T-≈ f₁ f₂ p q r s {node (just tˡ) (just tʳ)} refl = s refl refl
+
+Func-≈ = λ {h : ℕ} (dsdᵗ : DSD 0ℓ 0ℓ) (f₁ f₂ : Trie h → Carˣ dsdᵗ) →
+  (∀ {t₁} {t₂} → t₁ ≡ t₂ → _≈ˣ_ dsdᵗ (f₁ t₁) (f₂ t₂))
+
+func-≟ : {h : ℕ} → (dsdᵗ : DSD 0ℓ 0ℓ) → Decidable (Func-≈ {h} dsdᵗ)
+
+build-dsd : ℕ → (dsdᵗ : DSD 0ℓ 0ℓ) → DSD 0ℓ 0ℓ
+build-dsd h dsdᵗ = record {
+    Carrier = Trie h → Carᵗ ;
+    _≈_ = λ f₁ f₂ → ∀ {t₁ t₂} → t₁ ≡ t₂ → f₁ t₁ ≈ᵗ f₂ t₂ ;
+    isDecEquivalence = record {
+        isEquivalence = record {
+            refl  = λ { {f} {t₁} {t₂} refl → reflᵗ } ;
+            sym   = λ p₁ p₂ → symᵗ (p₁ (sym p₂)) ;
+            trans = λ p₁ p₂ p₃ → transᵗ (p₁ refl) (p₂ p₃)
+          } ;
+        _≟_ = func-≟ dsdᵗ
+      }
+  }
+
+  where
+  open DSD dsdᵗ using ()
+    renaming (Carrier to Carᵗ ; _≈_ to _≈ᵗ_ ; refl to reflᵗ ; sym to symᵗ ; trans to transᵗ)
+
+func-≟ {zero} dsdᵗ f₁ f₂ with bv-func-≟ dsdᵗ (f₁ ∘ leaf) (f₂ ∘ leaf)
+... | true  because ofʸ p = true  because ofʸ λ { {leaf _} refl → p refl }
+... | false because ofⁿ p = false because ofⁿ λ n → p $ λ { {bv₁} {bv₂} refl → n {leaf bv₁} refl }
+
+func-≟ {suc h} dsdᵗ f₁ f₂
+  with (_≟ˣ_ dsdᵗ) (f₁ (node nothing nothing)) (f₂ (node nothing nothing))
+... | false because ofⁿ p = false because ofⁿ λ n →  p $ n refl
+... | true  because ofʸ p
+  with func-≟ dsdᵗ (splitˡ f₁) (splitˡ f₂)
+... | false because ofⁿ q = false because ofⁿ (joinˡ (_≈ˣ_ dsdᵗ) f₁ f₂ q)
+... | true  because ofʸ q
+  with func-≟ dsdᵗ (splitʳ f₁) (splitʳ f₂)
+... | false because ofⁿ r = false because ofⁿ (joinʳ (_≈ˣ_ dsdᵗ) f₁ f₂ r)
+... | true  because ofʸ r
+  with func-≟ (build-dsd h dsdᵗ) (split f₁) (split f₂)
+... | false because ofⁿ s = false because ofⁿ (join⁻ (_≈ˣ_ dsdᵗ) f₁ f₂ s)
+... | true  because ofʸ s = true  because ofʸ (join⁺ (_≈ˣ_ dsdᵗ) f₁ f₂ p q r s)
