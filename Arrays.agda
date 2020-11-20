@@ -33,7 +33,7 @@ open import Data.Vec using () renaming ([] to []ᵛ ; _∷_ to _∷ᵛ_)
 
 open import Function using (_$_ ; _∘_)
 
-open import Level using (0ℓ)
+open import Level using (Level ; 0ℓ)
 
 open import Relation.Binary
   using (tri< ; tri≈ ; tri> ; Decidable) renaming (DecSetoid to DSD ; StrictTotalOrder to STO)
@@ -414,3 +414,73 @@ func-≟ {suc h} dsdᵗ f₁ f₂
   with func-≟ (build-dsd h dsdᵗ) (split f₁) (split f₂)
 ... | false because ofⁿ s = false because ofⁿ (join⁻ (_≈ˣ_ dsdᵗ) f₁ f₂ s)
 ... | true  because ofʸ s = true  because ofʸ (join⁺ (_≈ˣ_ dsdᵗ) f₁ f₂ p q r s)
+
+just-inj : {ℓ : Level} → {S : Set ℓ} → {x y : S} → just x ≡ just y → x ≡ y
+just-inj refl = refl
+
+leaf-inj : {x y : Val} → leaf x ≡ leaf y → x ≡ y
+leaf-inj refl = refl
+
+node-≢ˡ : ∀ {h ml₁ ml₂ mr₁ mr₂} → ml₁ ≢ ml₂ → node {h} ml₁ mr₁ ≢ node {h} ml₂ mr₂
+node-≢ˡ p refl = contradiction refl p
+
+node-≢ʳ : ∀ {h ml₁ ml₂ mr₁ mr₂} → mr₁ ≢ mr₂ → node {h} ml₁ mr₁ ≢ node {h} ml₂ mr₂
+node-≢ʳ p refl = contradiction refl p
+
+lookup-≋ : {h : ℕ} → (a₁ a₂ : Maybe (Trie h)) →
+  (∀ k → lookupᵗ k a₁ ≡ lookupᵗ k a₂) ⊎ (∃ λ k → lookupᵗ k a₁ ≢ lookupᵗ k a₂)
+
+lookup-≋        nothing          nothing          = inj₁ λ _ → refl
+lookup-≋ {zero} (just (leaf v₁)) nothing          = inj₂ ([]ᵛ , λ ())
+lookup-≋ {zero} nothing          (just (leaf v₂)) = inj₂ ([]ᵛ , λ ())
+
+lookup-≋ {zero} (just (leaf v₁)) (just (leaf v₂))
+  with v₁ ≟ᵛ v₂
+... | true  because ofʸ refl = inj₁ λ _ → refl
+... | false because ofⁿ p    = inj₂ ([]ᵛ , p ∘ just-inj)
+
+lookup-≋ {suc h} (just (node ml₁ mr₁)) nothing
+  with lookup-≋ ml₁ nothing
+... | inj₂ (k , p) = inj₂ (true ∷ᵛ k , p)
+... | inj₁ p
+  with lookup-≋ mr₁ nothing
+... | inj₂ (k , q) = inj₂ (false ∷ᵛ k , q)
+... | inj₁ q = inj₁ λ { (true ∷ᵛ k) → p k ; (false ∷ᵛ k) → q k }
+
+lookup-≋ {suc h} nothing (just (node ml₂ mr₂))
+  with lookup-≋ nothing ml₂
+... | inj₂ (k , p) = inj₂ (true ∷ᵛ k , p)
+... | inj₁ p
+  with lookup-≋ nothing mr₂
+... | inj₂ (k , q) = inj₂ (false ∷ᵛ k , q)
+... | inj₁ q = inj₁ λ { (true ∷ᵛ k) → p k ; (false ∷ᵛ k) → q k }
+
+lookup-≋ {suc h} (just (node ml₁ mr₁)) (just (node ml₂ mr₂))
+  with lookup-≋ ml₁ ml₂
+... | inj₂ (k , p) = inj₂ (true ∷ᵛ k , p)
+... | inj₁ p
+  with lookup-≋ mr₁ mr₂
+... | inj₂ (k , q) = inj₂ (false ∷ᵛ k , q)
+... | inj₁ q = inj₁ λ { (true ∷ᵛ k) → p k ; (false ∷ᵛ k) → q k }
+
+array-≟ : {h : ℕ} → (a₁ a₂ : Maybe (Trie h)) → Dec (a₁ ≡ a₂)
+array-≟ {zero} nothing          nothing          = true  because ofʸ refl
+array-≟ {zero} nothing          (just (leaf v₂)) = false because ofⁿ λ ()
+array-≟ {zero} (just (leaf v₁)) nothing          = false because ofⁿ λ ()
+
+array-≟ {zero} (just (leaf v₁)) (just (leaf v₂))
+  with v₁ ≟ᵛ v₂
+... | true  because ofʸ refl = true  because ofʸ refl
+... | false because ofⁿ p    = false because ofⁿ (p ∘ leaf-inj ∘ just-inj)
+
+array-≟ {suc h} nothing  nothing  = true  because ofʸ refl
+array-≟ {suc h} nothing  (just _) = false because ofⁿ λ ()
+array-≟ {suc h} (just x) nothing  = false because ofⁿ λ ()
+
+array-≟ {suc h} (just (node ml₁ mr₁)) (just (node ml₂ mr₂))
+  with array-≟ ml₁ ml₂
+... | false because ofⁿ p    = false because ofⁿ (node-≢ˡ p ∘ just-inj)
+... | true  because ofʸ refl
+  with array-≟ mr₁ mr₂
+... | false because ofⁿ q    = false because ofⁿ (node-≢ʳ q ∘ just-inj)
+... | true  because ofʸ refl = true  because ofʸ refl
