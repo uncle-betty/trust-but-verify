@@ -2,41 +2,22 @@ open import Data.Nat using (ℕ)
 
 module Arrays (bitsᵏ bitsᵛ : ℕ) where
 
-open import BitVec using (BitVec ; bv-dsd ; bv-sto ; bv-func-≟ ; null)
-
-stoᵏ = bv-sto {bitsᵏ}
-dsdᵏ = bv-dsd {bitsᵏ}
-dsdᵛ = bv-dsd {bitsᵛ}
-defᵏ = null {bitsᵏ}
-defᵛ = null {bitsᵛ}
-
 open import Data.Bool using (true ; false ; _∨_ ; not)
 open import Data.Bool.Properties using (∨-zeroˡ ; ∨-zeroʳ ; not-¬)
-open import Data.List using (List ; [] ; _∷_ ; map)
-open import Data.List.Membership.DecSetoid dsdᵏ using (_∈_ ; _∉_ ; _∈?_)
-open import Data.List.Relation.Unary.Any using (here ; there)
-
-open import Data.List.Relation.Unary.Linked
-  using () renaming ([] to []ᴸ ; [-] to [-]ᴸ ; _∷_ to _∷ᴸ_)
-
+open import Data.Empty using (⊥)
+open import Data.List using ([])
 open import Data.Maybe using (Maybe ; just ; nothing)
 open import Data.Nat using (zero ; suc ; _⊔_)
 open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂ ; ∃)
 open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
-open import Data.Tree.AVL stoᵏ using (tree)
-
-open import Data.Tree.AVL.Indexed stoᵏ
-  using (Tree ; K&_ ; ⊥⁺<[_]<⊤⁺) renaming (lookup to lookup′)
-
-open import Data.Tree.AVL.Map stoᵏ using (Map ; lookup ; insert)
+open import Data.Unit using (⊤ ; tt)
 open import Data.Vec using () renaming ([] to []ᵛ ; _∷_ to _∷ᵛ_)
 
 open import Function using (_$_ ; _∘_)
 
 open import Level using (Level ; 0ℓ)
 
-open import Relation.Binary
-  using (tri< ; tri≈ ; tri> ; Decidable) renaming (DecSetoid to DSD ; StrictTotalOrder to STO)
+open import Relation.Binary using (Decidable) renaming (DecSetoid to DSD)
 
 open import Relation.Binary.PropositionalEquality
   using (_≡_ ; _≢_ ; refl ; sym ; ≢-sym ; trans ; cong ; subst ; inspect ; [_])
@@ -44,31 +25,110 @@ open import Relation.Binary.PropositionalEquality
 open import Relation.Nullary using (Dec ; _because_ ; does ; ofʸ ; ofⁿ ; ¬_)
 open import Relation.Nullary.Negation using (contradiction)
 
-open DSD dsdᵏ using () renaming (
-    Carrier to Key ; _≈_ to _≈ᵏ_ ; _≟_ to _≟ᵏ_ ; refl to reflᵏ ; sym to symᵏ ; trans to transᵏ
-  )
-
-open DSD dsdᵛ using () renaming (
-    Carrier to Val ; _≈_ to _≈ᵛ_ ; _≟_ to _≟ᵛ_ ; refl to reflᵛ ; sym to symᵛ ; trans to transᵛ
-  )
-
-open STO stoᵏ using () renaming (
-    _<_ to _<ᵏ_ ; compare to compᵏ ; trans to <-transᵏ ; irrefl to irreflᵏ ; <-resp-≈ to <-resp-≈ᵏ
-  )
-
-open import AVL stoᵏ Val using (V ; flat ; get ; put ; avl-insed ; avl-other)
-  renaming (lookup≡get to lookup′≡get ; insert≡put to insert′≡put)
-
+open import BitVec using (BitVec ; bv-dsd ; bv-func-≟ ; null)
 open import SAT using (Env ; Holdsᶜ ; not-t⇒f ; f⇒not-t)
 open import SMT using (orᶠ ; notᶠ ; equᶠ ; Holds ; holds)
 
+dsdᵏ = bv-dsd {bitsᵏ}
+dsdᵛ = bv-dsd {bitsᵛ}
+
+defᵛ = null {bitsᵛ}
+defᵏ = null {bitsᵏ}
+
+open DSD dsdᵏ using () renaming (Carrier to Key ; _≟_ to _≟ᵏ_)
+open DSD dsdᵛ using () renaming (Carrier to Val ; _≟_ to _≟ᵛ_)
+
+valid : {S : Set} → (l r : Maybe S) → Set
+valid nothing nothing = ⊥
+valid _       _       = ⊤
+
+one-valid : {S : Set} → {l r : Maybe S} → (v₁ v₂ : valid l r) → v₁ ≡ v₂
+one-valid {l = just _}  {just _}  v₁ v₂ = refl
+one-valid {l = just _}  {nothing} v₁ v₂ = refl
+one-valid {l = nothing} {just _}  v₁ v₂ = refl
+
+data Trie : ℕ → Set where
+  node : {h : ℕ} → (l r : Maybe (Trie h)) → {valid l r} → Trie (suc h)
+  leaf : Val → Trie 0
+
+-- helper to get valid l r for unknown left sub-tries
+node′ : {h : ℕ} → (l : Maybe (Trie h)) → (r : Trie h) → Trie (suc h)
+node′ nothing  r = node nothing  (just r)
+node′ (just l) r = node (just l) (just r)
+
+just-inj : {ℓ : Level} → {S : Set ℓ} → {x y : S} → just x ≡ just y → x ≡ y
+just-inj refl = refl
+
+leaf-inj : {v₁ v₂ : Val} → leaf v₁ ≡ leaf v₂ → v₁ ≡ v₂
+leaf-inj refl = refl
+
+node-injˡ : ∀ {h l₁ l₂ r₁ r₂ v₁ v₂} → node {h} l₁ r₁ {v₁} ≡ node {h} l₂ r₂ {v₂} → l₁ ≡ l₂
+node-injˡ refl = refl
+
+node-injʳ : ∀ {h l₁ l₂ r₁ r₂ v₁ v₂} → node {h} l₁ r₁ {v₁} ≡ node {h} l₂ r₂ {v₂} → r₁ ≡ r₂
+node-injʳ refl = refl
+
 -- LFSC: Array
-Array : Set
-Array = Map Val
+Array : {ℕ} → Set
+Array {n} = Maybe (Trie n)
+
+infix 4 _≟_
+
+_≟_ : {h : ℕ} → (a₁ a₂ : Array {h}) → Dec (a₁ ≡ a₂)
+_≟_ {zero} nothing          nothing          = true  because ofʸ refl
+_≟_ {zero} nothing          (just (leaf v₂)) = false because ofⁿ λ ()
+_≟_ {zero} (just (leaf v₁)) nothing          = false because ofⁿ λ ()
+
+_≟_ {zero} (just (leaf v₁)) (just (leaf v₂))
+  with v₁ ≟ᵛ v₂
+... | true  because ofʸ refl = true  because ofʸ refl
+... | false because ofⁿ p    = false because ofⁿ (p ∘ leaf-inj ∘ just-inj)
+
+_≟_ {suc h} nothing  nothing  = true  because ofʸ refl
+_≟_ {suc h} nothing  (just _) = false because ofⁿ λ ()
+_≟_ {suc h} (just x) nothing  = false because ofⁿ λ ()
+
+_≟_ {suc h} (just (node l₁ r₁ {v₁})) (just (node l₂ r₂ {v₂}))
+  with l₁ ≟ l₂
+... | false because ofⁿ p    = false because ofⁿ (p ∘ node-injˡ ∘ just-inj)
+... | true  because ofʸ refl
+  with r₁ ≟ r₂
+... | false because ofⁿ q    = false because ofⁿ (q ∘ node-injʳ ∘ just-inj)
+... | true  because ofʸ refl
+  rewrite one-valid v₁ v₂
+  = true  because ofʸ refl
+
+array-dsd : {ℕ} → DSD 0ℓ 0ℓ
+array-dsd {h} = record {
+    Carrier = Array {h} ;
+    _≈_ = _≡_ ;
+    isDecEquivalence = record {
+        isEquivalence = record {
+            refl  = refl ;
+            sym   = sym ;
+            trans = trans
+          } ;
+        _≟_ = _≟_
+      }
+  }
+
+insert : {h : ℕ} → BitVec h → Val → Maybe (Trie h) → Trie h
+insert []ᵛ           v nothing             = leaf v
+insert (true  ∷ᵛ bv) v nothing             = let t = insert bv v nothing in node (just t) nothing
+insert (false ∷ᵛ bv) v nothing             = let t = insert bv v nothing in node nothing (just t)
+insert []ᵛ           v (just (leaf _))     = leaf v
+insert (true  ∷ᵛ bv) v (just (node aˡ aʳ)) = let t = insert bv v aˡ in node (just t) aʳ
+insert (false ∷ᵛ bv) v (just (node aˡ aʳ)) = let t = insert bv v aʳ in node′ aˡ t
 
 -- LFSC: write
-write : Array → Key → Val → Array
-write a k v = insert k v a
+write : Array {bitsᵏ} → Key → Val → Array
+write a k v = just $ insert k v a
+
+lookup : {h : ℕ} → BitVec h → Array {h} → Maybe Val
+lookup _             nothing             = nothing
+lookup []ᵛ           (just (leaf v))     = just v
+lookup (true  ∷ᵛ bv) (just (node aˡ _))  = lookup bv aˡ
+lookup (false ∷ᵛ bv) (just (node _  aʳ)) = lookup bv aʳ
 
 -- LFSC: read
 read : Array → Key → Val
@@ -76,194 +136,46 @@ read a k with lookup k a
 ... | nothing = defᵛ
 ... | just v  = v
 
-flatten : Array → List (K& V)
-flatten (tree t) = flat t
+insed : {h : ℕ} → (a : Array {h}) → (k : BitVec h) → (v : Val) →
+  lookup k (just (insert k v a)) ≡ just v
 
-write′ : List (K& V) → Key → Val → List (K& V)
-write′ kvs k v = put k (λ _ → v) kvs
+insed nothing                   []ᵛ           _ = refl
+insed nothing                   (true  ∷ᵛ bv) v = insed nothing bv v
+insed nothing                   (false ∷ᵛ bv) v = insed nothing bv v
+insed (just (leaf _))           []ᵛ           _ = refl
+insed (just (node aˡ       _))  (true  ∷ᵛ bv) v = insed aˡ bv v
+-- extra case split for node′
+insed (just (node nothing  aʳ)) (false ∷ᵛ bv) v = insed aʳ bv v
+insed (just (node (just _) aʳ)) (false ∷ᵛ bv) v = insed aʳ bv v
 
-read′ : List (K& V) → Key → Val
-read′ kvs k with get k kvs
-... | nothing = defᵛ
-... | just v  = v
+trim-≉ : ∀ {n b} → {bv₁ bv₂ : BitVec n} → (b ∷ᵛ bv₁) ≢ (b ∷ᵛ bv₂) → bv₁ ≢ bv₂
+trim-≉ {b = b} {bv₁} {bv₂} p n = p $ cong (b ∷ᵛ_) n
 
-insert≡put : ∀ {h} → (k : Key) → (v : Val) → (t : Tree _ _ _ h) →
-  flatten (insert k v (tree t)) ≡ put k (λ _ → v) (flat t)
+other : {h : ℕ} → (a : Array {h}) → (k₁ k₂ : BitVec h) → (v : Val) → k₁ ≢ k₂ →
+  lookup k₂ (just (insert k₁ v a)) ≡ lookup k₂ a
 
-insert≡put k v t = insert′≡put k (λ _ → v) t ⊥⁺<[ k ]<⊤⁺
+pattern J x = just x
+pattern N   = nothing
 
-lookup≡get : ∀ {h} → (k : Key) → (t : Tree _ _ _ h) → lookup k (tree t) ≡ get k (flat t)
-lookup≡get k t = lookup′≡get k t ⊥⁺<[ k ]<⊤⁺
-
-write≡write′ : (a : Array) → (k : Key) → (v : Val) → flatten (write a k v) ≡ write′ (flatten a) k v
-write≡write′ (tree t) k v = insert≡put k v t
-
-read≡read′ : (a : Array) → (k : Key) → read a k ≡ read′ (flatten a) k
-read≡read′ (tree t) k rewrite lookup≡get k t with get k (flat t)
-... | nothing = refl
-... | just _  = refl
-
-lookup-insed : (a : Array) → (k : Key) → (v : Val) → lookup k (insert k v a) ≡ just v
-lookup-insed a k v = avl-insed k v a
-
-lookup-other : (a : Array) → (k′ k : Key) → (v : Val) → ¬ k′ ≈ᵏ k →
-  lookup k (insert k′ v a) ≡ lookup k a
-
-lookup-other a k′ k v k₁≉k₂ = avl-other k k′ v a (k₁≉k₂ ∘ symᵏ)
-
-keys : List (K& V) → List Key
-keys = map proj₁
-
-read′-def : ∀ {k kvs} → k ∉ keys kvs → read′ kvs k ≈ᵛ defᵛ
-read′-def {k} {[]} p = reflᵛ
-read′-def {k} {(k′ , v′) ∷ kvs′} p with compᵏ k′ k
-... | tri< _ _  _  = read′-def λ { n → p (there n) }
-... | tri≈ _ p₂ _  = contradiction (here (symᵏ p₂)) p
-... | tri> _ _  _  = reflᵛ
-
-read′-≈ : ∀ {k₁ k₂} → (kvs : List (K& V)) → k₁ ≈ᵏ k₂ → read′ kvs k₁ ≈ᵛ read′ kvs k₂
-read′-≈ {k₁} {k₂} [] p = reflᵛ
-read′-≈ {k₁} {k₂} ((k′ , v′) ∷ kvs′) p with compᵏ k′ k₁ | compᵏ k′ k₂
-... | tri< _ _ _ | tri< _ _ _ = read′-≈ kvs′ p
-... | tri< q _ _ | tri≈ r _ _ = contradiction (proj₁ <-resp-≈ᵏ p q) r
-... | tri< q _ _ | tri> r _ _ = contradiction (proj₁ <-resp-≈ᵏ p q) r
-
-... | tri≈ _ q _ | tri< _ r _ = contradiction (transᵏ q p) r
-... | tri≈ _ _ _ | tri≈ _ _ _ = reflᵛ
-... | tri≈ _ q _ | tri> _ r _ = contradiction (transᵏ q p) r
-
-... | tri> _ _ q | tri< _ _ r = contradiction (proj₂ <-resp-≈ᵏ p q) r
-... | tri> _ _ q | tri≈ _ _ r = contradiction (proj₂ <-resp-≈ᵏ p q) r
-... | tri> _ _ _ | tri> _ _ _ = reflᵛ
-
-match-keys : (ks : List Key) → (kvs₁ kvs₂ : List (K& V)) →
-  (∀ k → k ∈ ks → read′ kvs₁ k ≈ᵛ read′ kvs₂ k) ⊎
-  (∃ λ k → ¬ read′ kvs₁ k ≈ᵛ read′ kvs₂ k)
-
-match-keys [] kvs₁ kvs₂ = inj₁ λ k ()
-match-keys (k ∷ ks) kvs₁ kvs₂ with match-keys ks kvs₁ kvs₂
-... | inj₂ p = inj₂ p
-... | inj₁ p with read′ kvs₁ k ≟ᵛ read′ kvs₂ k
-... | false because ofⁿ q = inj₂ (k , q)
-... | true  because ofʸ q = inj₁ λ {
-    k′ (here r)  → transᵛ (transᵛ (read′-≈ kvs₁ r) q) (symᵛ (read′-≈ kvs₂ r)) ;
-    k′ (there r) → p k′ r
-  }
-
-matched-all : ∀ {kvs₁ kvs₂} →
-  (∀ k → k ∈ keys kvs₁ → read′ kvs₁ k ≈ᵛ read′ kvs₂ k) →
-  (∀ k → k ∈ keys kvs₂ → read′ kvs₁ k ≈ᵛ read′ kvs₂ k) →
-  (∀ k → read′ kvs₁ k ≈ᵛ read′ kvs₂ k)
-
-matched-all {kvs₁} {kvs₂} p₁ p₂ k with k ∈? keys kvs₁ | k ∈? keys kvs₂
-... | true  because ofʸ q₁ | true  because _      = p₁ k q₁
-... | true  because ofʸ q₁ | false because _      = p₁ k q₁
-... | false because _      | true  because ofʸ q₂ = p₂ k q₂
-... | false because ofⁿ q₁ | false because ofⁿ q₂ = transᵛ (read′-def q₁) (symᵛ (read′-def q₂))
-
-comp-flat : (kvs₁ kvs₂ : List (K& V)) →
-  (∀ k → read′ kvs₁ k ≈ᵛ read′ kvs₂ k) ⊎ (∃ λ k → ¬ read′ kvs₁ k ≈ᵛ read′ kvs₂ k)
-
-comp-flat kvs₁ kvs₂ with match-keys (keys kvs₁) kvs₁ kvs₂
-... | inj₂ p = inj₂ p
-... | inj₁ p with match-keys (keys kvs₂) kvs₁ kvs₂
-... | inj₂ q = inj₂ q
-... | inj₁ q = inj₁ (matched-all p q)
-
-∃¬⇒¬∀ : {A : Set} → {B : A → Set} → ∃ (λ a → ¬ B a) → ¬ (∀ a → B a)
-∃¬⇒¬∀ (a , b) n = b (n a)
-
-≟-flat : ∀ kvs₁ kvs₂ → Dec (∀ k → read′ kvs₁ k ≈ᵛ read′ kvs₂ k)
-≟-flat kvs₁ kvs₂ with comp-flat kvs₁ kvs₂
-... | inj₁ p = true  because ofʸ p
-... | inj₂ p = false because ofⁿ (∃¬⇒¬∀ p)
-
-infix 4 _≈ᵃ_
-
-_≈ᵃ_ : (a₁ a₂ : Array) → Set
-a₁ ≈ᵃ a₂ = ∀ k → read a₁ k ≈ᵛ read a₂ k
-
-infix 4 _≟ᵃ_
-
-_≟ᵃ_ : (a₁ a₂ : Array) → Dec (a₁ ≈ᵃ a₂)
-a₁ ≟ᵃ a₂ with ≟-flat (flatten a₁) (flatten a₂)
-
-... | true  because ofʸ p = true  because ofʸ λ k →
-  subst (λ # → read a₁ k ≈ᵛ #) (sym $ read≡read′ a₂ k) $
-  subst (λ # → # ≈ᵛ read′ (flatten a₂) k) (sym $ read≡read′ a₁ k) $
-  p k
-
-... | false because ofⁿ p = false because ofⁿ λ n → p λ k →
-  subst (λ # → read′ (flatten a₁) k ≈ᵛ #) (read≡read′ a₂ k) $
-  subst (λ # → # ≈ᵛ read a₂ k) (read≡read′ a₁ k) $
-  n k
-
-array-dsd : DSD 0ℓ 0ℓ
-array-dsd = record {
-    Carrier = Array ;
-    _≈_ = _≈ᵃ_ ;
-    isDecEquivalence = record {
-        isEquivalence = record {
-            refl  = λ _ → reflᵛ ;
-            sym   = λ p k → symᵛ (p k) ;
-            trans = λ p₁ p₂ k → transᵛ (p₁ k) (p₂ k)
-          } ;
-        _≟_ = _≟ᵃ_
-      }
-  }
-
-comp : (a₁ a₂ : Array) → (∀ k → read a₁ k ≈ᵛ read a₂ k) ⊎ (∃ λ k → ¬ read a₁ k ≈ᵛ read a₂ k)
-comp a₁ a₂ with comp-flat (flatten a₁) (flatten a₂)
-... | inj₁ p = inj₁ λ k →
-  subst (λ # → read a₁ k ≈ᵛ #) (sym $ read≡read′ a₂ k) $
-  subst (λ # → # ≈ᵛ read′ (flatten a₂) k) (sym $ read≡read′ a₁ k) $
-  p k
-
-... | inj₂ (k , p) = inj₂ (k , λ n → p $
-  subst (λ # → read′ (flatten a₁) k ≈ᵛ #) (read≡read′ a₂ k) $
-  subst (λ # → # ≈ᵛ read a₂ k) (read≡read′ a₁ k) $
-  n)
-
-module _ (env : Env) where
-  ext-lem₁ : ∀ a₁ a₂ → (∀ k → read a₁ k ≈ᵛ read a₂ k) → does (a₁ ≟ᵃ a₂) ≡ true
-  ext-lem₁ a₁ a₂ p with a₁ ≟ᵃ a₂
-  ... | true  because ofʸ _ = refl
-  ... | false because ofⁿ q = contradiction p q
-
-  ext-lem₂ : ∀ a₁ a₂ k → ¬ read a₁ k ≈ᵛ read a₂ k → not (does (read a₁ k ≟ᵛ read a₂ k)) ≡ true
-  ext-lem₂ a₁ a₂ k p with read a₁ k ≟ᵛ read a₂ k
-  ... | true  because ofʸ q = contradiction q p
-  ... | false because ofⁿ _ = refl
-
-  -- LFSC: ext
-  exten : (a₁ a₂ : Array) →
-    ((k : Key) →
-      Holds (orᶠ (equᶠ {{array-dsd}} a₁ a₂) (notᶠ (equᶠ {{dsdᵛ}} (read a₁ k) (read a₂ k)))) →
-      Holdsᶜ env []) →
-    Holdsᶜ env []
-
-  exten a₁ a₂ p with comp a₁ a₂
-  ... | inj₁ q =
-    let
-      s₁ = λ # → # ∨ not (does (read a₁ defᵏ ≟ᵛ read a₂ defᵏ)) ≡ true
-      s₂ = sym $ ext-lem₁ a₁ a₂ q
-      s₃ = ∨-zeroˡ (not (does (read a₁ defᵏ ≟ᵛ read a₂ defᵏ)))
-    in
-      p defᵏ (holds _ (subst s₁ s₂ s₃))
-
-  ... | inj₂ (k , q) =
-    let
-      s₁ = λ # → does (a₁ ≟ᵃ a₂) ∨ # ≡ true
-      s₂ = sym $ ext-lem₂ a₁ a₂ k q
-      s₃ = ∨-zeroʳ (does (a₁ ≟ᵃ a₂))
-    in
-      p k (holds _ (subst s₁ s₂ s₃))
+other _                   []ᵛ            []ᵛ            _ k₁≉k₂ = contradiction refl k₁≉k₂
+other N                   (true  ∷ᵛ bv₁) (true  ∷ᵛ bv₂) v k₁≉k₂ = other N  bv₁ bv₂ v (trim-≉ k₁≉k₂)
+other (J (node aˡ    _))  (true  ∷ᵛ bv₁) (true  ∷ᵛ bv₂) v k₁≉k₂ = other aˡ bv₁ bv₂ v (trim-≉ k₁≉k₂)
+other N                   (true  ∷ᵛ _)   (false ∷ᵛ _)   _ _     = refl
+other (J (node _     _))  (true  ∷ᵛ _)   (false ∷ᵛ _)   _ _     = refl
+other N                   (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _     = refl
+-- extra case split for node′
+other (J (node N  _))     (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _     = refl
+other (J (node (J _) _))  (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _     = refl
+other N                   (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v k₁≉k₂ = other N  bv₁ bv₂ v (trim-≉ k₁≉k₂)
+-- extra case split for node′
+other (J (node N     aʳ)) (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v k₁≉k₂ = other aʳ bv₁ bv₂ v (trim-≉ k₁≉k₂)
+other (J (node (J _) aʳ)) (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v k₁≉k₂ = other aʳ bv₁ bv₂ v (trim-≉ k₁≉k₂)
 
 -- LFSC: row1
 row-≈ : (a : Array) → (k : Key) → (v : Val) → Holds (equᶠ {{dsdᵛ}} (read (write a k v) k) v)
 row-≈ a k v with read (write a k v) k ≟ᵛ v | inspect (read (write a k v) k ≟ᵛ_) v
 ... | true  because _     | [ eq ] = holds _ (cong does eq)
-... | false because ofⁿ p | _      rewrite lookup-insed a k v = contradiction reflᵛ p
+... | false because ofⁿ p | _      rewrite insed a k v = contradiction refl p
 
 -- LFSC: row
 row-≉ : (a : Array) → (k₁ k₂ : Key) → (v : Val) →
@@ -275,7 +187,7 @@ row-≉ a k₁ k₂ v (holds _ h)
 
 ... | true  because _     | [ eq ] = holds _ (cong does eq)
 ... | false because ofⁿ p | _      with k₁ ≟ᵏ k₂
-... | false because ofⁿ q rewrite lookup-other a k₁ k₂ v q = contradiction reflᵛ p
+... | false because ofⁿ q rewrite other a k₁ k₂ v q = contradiction refl p
 
 -- LFSC: negativerow
 ¬-row-≉ : (a : Array) → (k₁ k₂ : Key) → (v : Val) →
@@ -287,51 +199,125 @@ row-≉ a k₁ k₂ v (holds _ h)
 ... | false | [ eq ] with (holds _ h′) ← row-≉ a k₁ k₂ v (holds _ (f⇒not-t eq)) =
   contradiction h′ (not-¬ (not-t⇒f h))
 
-data Trie : ℕ → Set where
-  node : {h : ℕ} → Maybe (Trie h) → Maybe (Trie h) → Trie (suc h)
-  leaf : Val → Trie 0
+≢-lookup : {h : ℕ} → {a₁ a₂ : Array {h}} → a₁ ≢ a₂ → (∃ λ k → lookup k a₁ ≢ lookup k a₂)
+≢-lookup {_}    {N}           {N}           a₁≢a₂ = contradiction refl a₁≢a₂
+≢-lookup {zero} {J (leaf v₁)} {N}           a₁≢a₂ = []ᵛ , λ ()
+≢-lookup {zero} {N}           {J (leaf v₂)} a₁≢a₂ = []ᵛ , λ ()
 
-lookupᵗ : {h : ℕ} → BitVec h → Maybe (Trie h) → Maybe Val
-lookupᵗ _             nothing             = nothing
-lookupᵗ []ᵛ           (just (leaf v))     = just v
-lookupᵗ (true  ∷ᵛ bv) (just (node ml _))  = lookupᵗ bv ml
-lookupᵗ (false ∷ᵛ bv) (just (node _  mr)) = lookupᵗ bv mr
+≢-lookup {zero} {J (leaf v₁)} {J (leaf v₂)} a₁≢a₂
+  with v₁ ≟ᵛ v₂
+... | true  because ofʸ refl = contradiction refl a₁≢a₂
+... | false because ofⁿ p    = []ᵛ , λ n → p $ just-inj n
 
-insertᵗ : {h : ℕ} → BitVec h → Val → Maybe (Trie h) → Maybe (Trie h)
-insertᵗ []ᵛ           v nothing             = just $ leaf v
-insertᵗ (true  ∷ᵛ bv) v nothing             = just $ let t = insertᵗ bv v nothing in node t nothing
-insertᵗ (false ∷ᵛ bv) v nothing             = just $ let t = insertᵗ bv v nothing in node nothing t
-insertᵗ []ᵛ           v (just (leaf _))     = just $ leaf v
-insertᵗ (true  ∷ᵛ bv) v (just (node ml mr)) = just $ let t = insertᵗ bv v ml in node t mr
-insertᵗ (false ∷ᵛ bv) v (just (node ml mr)) = just $ let t = insertᵗ bv v mr in node ml t
+-- no node N N cases because of valid l r magic
 
-insed : {h : ℕ} → (mt : Maybe (Trie h)) → (k : BitVec h) → (v : Val) →
-  lookupᵗ k (insertᵗ k v mt) ≡ just v
+≢-lookup {suc h} {J (node (J l₁) _)} {N} a₁≢a₂ =
+  let (k , p) = ≢-lookup {h} {J l₁} {N} λ () in true ∷ᵛ k , p
 
-insed nothing             []ᵛ           _ = refl
-insed nothing             (true  ∷ᵛ bv) v = insed nothing bv v
-insed nothing             (false ∷ᵛ bv) v = insed nothing bv v
-insed (just (leaf _))     []ᵛ           _ = refl
-insed (just (node ml _ )) (true  ∷ᵛ bv) v = insed ml bv v
-insed (just (node _  mr)) (false ∷ᵛ bv) v = insed mr bv v
+≢-lookup {suc h} {J (node N (J r₁))} {N} a₁≢a₂ =
+  let (k , p) = ≢-lookup {h} {J r₁} {N} λ () in false ∷ᵛ k , p
 
-open DSD using () renaming (Carrier to Carˣ ; _≈_ to _≈ˣ_ ; _≟_ to _≟ˣ_ ; refl to reflˣ)
+≢-lookup {suc h} {N} {J (node (J l₂) _)} a₁≢a₂ =
+  let (k , p) = ≢-lookup {h} {N} {J l₂} λ () in true ∷ᵛ k , p
 
-trim-≉ : ∀ {n b} → {bv₁ bv₂ : BitVec n} → ¬ _≈ˣ_ bv-dsd (b ∷ᵛ bv₁) (b ∷ᵛ bv₂) → ¬ _≈ˣ_ bv-dsd bv₁ bv₂
-trim-≉ {b = b} {bv₁} {bv₂} p n = p $ cong (b ∷ᵛ_) n
+≢-lookup {suc h} {N} {J (node N (J r₂))} a₁≢a₂ =
+  let (k , p) = ≢-lookup {h} {N} {J r₂} λ () in false ∷ᵛ k , p
 
-other : {h : ℕ} → (mt : Maybe (Trie h)) → (k₁ k₂ : BitVec h) → (v : Val) → ¬ _≈ˣ_ bv-dsd k₁ k₂ →
-  lookupᵗ k₂ (insertᵗ k₁ v mt) ≡ lookupᵗ k₂ mt
+≢-lookup {suc h} {J (node l₁ r₁)} {J (node l₂ r₂)} a₁≢a₂
+  with l₁ ≟ l₂
+... | false because ofⁿ p    = let (k , q) = ≢-lookup {h} {l₁} {l₂} p in true ∷ᵛ k , q
+... | true  because ofʸ refl
+  with r₁ ≟ r₂
+... | false because ofⁿ r    = let (k , s) = ≢-lookup {h} {r₁} {r₂} r in false ∷ᵛ k , s
+... | true  because ofʸ refl
+  with l₁
+... | J _                    = contradiction refl a₁≢a₂
+... | N
+  with r₁
+... | J _                    = contradiction refl a₁≢a₂
 
-other _                   []ᵛ            []ᵛ            _ k₁≉k₂ = contradiction (reflˣ bv-dsd) k₁≉k₂
-other nothing             (true  ∷ᵛ bv₁) (true  ∷ᵛ bv₂) v k₁≉k₂ = other nothing bv₁ bv₂ v (trim-≉ k₁≉k₂)
-other (just (node ml _ )) (true  ∷ᵛ bv₁) (true  ∷ᵛ bv₂) v k₁≉k₂ = other ml      bv₁ bv₂ v (trim-≉ k₁≉k₂)
-other nothing             (true  ∷ᵛ _)   (false ∷ᵛ _)   _ _     = refl
-other (just (node _  mr)) (true  ∷ᵛ _)   (false ∷ᵛ _)   _ _     = refl
-other nothing             (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _     = refl
-other (just (node ml _ )) (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _     = refl
-other nothing             (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v k₁≉k₂ = other nothing bv₁ bv₂ v (trim-≉ k₁≉k₂)
-other (just (node _  mr)) (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v k₁≉k₂ = other mr      bv₁ bv₂ v (trim-≉ k₁≉k₂)
+≢-read : {a₁ a₂ : Array} → a₁ ≢ a₂ → (∃ λ k → read a₁ k ≢ read a₂ k)
+≢-read {a₁} {a₂} a₁≢a₂
+  with (k , p) ← ≢-lookup a₁≢a₂ = k , lem
+  where
+  lem : read a₁ k ≢ read a₂ k
+  lem with lookup k a₁ | lookup k a₂
+  ... | J v₁ | J v₂ = p ∘ cong J
+  ... | J v₁ | N    = {!!}
+  ... | N    | J v₂ = {!!}
+  ... | N    | N    = contradiction refl p
+
+lookup-≋ : {h : ℕ} → (a₁ a₂ : Array {h}) →
+  (∀ k → lookup k a₁ ≡ lookup k a₂) ⊎ (∃ λ k → lookup k a₁ ≢ lookup k a₂)
+
+lookup-≋        nothing          nothing          = inj₁ λ _ → refl
+lookup-≋ {zero} (just (leaf v₁)) nothing          = inj₂ ([]ᵛ , λ ())
+lookup-≋ {zero} nothing          (just (leaf v₂)) = inj₂ ([]ᵛ , λ ())
+
+lookup-≋ {zero} (just (leaf v₁)) (just (leaf v₂))
+  with v₁ ≟ᵛ v₂
+... | true  because ofʸ refl = inj₁ λ _ → refl
+... | false because ofⁿ p    = inj₂ ([]ᵛ , p ∘ just-inj)
+
+lookup-≋ {suc h} (just (node l₁ r₁)) nothing
+  with lookup-≋ l₁ nothing
+... | inj₂ (k , p) = inj₂ (true ∷ᵛ k , p)
+... | inj₁ p
+  with lookup-≋ r₁ nothing
+... | inj₂ (k , q) = inj₂ (false ∷ᵛ k , q)
+... | inj₁ q = inj₁ λ { (true ∷ᵛ k) → p k ; (false ∷ᵛ k) → q k }
+
+lookup-≋ {suc h} nothing (just (node l₂ r₂))
+  with lookup-≋ nothing l₂
+... | inj₂ (k , p) = inj₂ (true ∷ᵛ k , p)
+... | inj₁ p
+  with lookup-≋ nothing r₂
+... | inj₂ (k , q) = inj₂ (false ∷ᵛ k , q)
+... | inj₁ q = inj₁ λ { (true ∷ᵛ k) → p k ; (false ∷ᵛ k) → q k }
+
+lookup-≋ {suc h} (just (node l₁ r₁)) (just (node l₂ r₂))
+  with lookup-≋ l₁ l₂
+... | inj₂ (k , p) = inj₂ (true ∷ᵛ k , p)
+... | inj₁ p
+  with lookup-≋ r₁ r₂
+... | inj₂ (k , q) = inj₂ (false ∷ᵛ k , q)
+... | inj₁ q = inj₁ λ { (true ∷ᵛ k) → p k ; (false ∷ᵛ k) → q k }
+
+∃¬⇒¬∀ : {A : Set} → {B : A → Set} → ∃ (λ a → ¬ B a) → ¬ (∀ a → B a)
+∃¬⇒¬∀ (a , b) n = b (n a)
+
+module _ (env : Env) where
+  ext-lem₁ : {h : ℕ} → {a : Array {h}} → does (a ≟ a) ≡ true
+  ext-lem₁ {a = a} with a ≟ a
+  ... | true  because ofʸ _ = refl
+  ... | false because ofⁿ p = contradiction refl p
+
+  ext-lem₂ : {a₁ a₂ : Array} → {k : Key} →
+    read a₁ k ≢ read a₂ k → not (does (read a₁ k ≟ᵛ read a₂ k)) ≡ true
+
+  ext-lem₂ {a₁ = a₁} {a₂} {k} p
+    with read a₁ k ≟ᵛ read a₂ k
+  ... | true  because ofʸ q = contradiction q p
+  ... | false because ofⁿ _ = refl
+
+  -- LFSC: ext
+  exten : (a₁ a₂ : Array) →
+    ((k : Key) →
+      Holds (orᶠ (equᶠ {{array-dsd}} a₁ a₂) (notᶠ (equᶠ {{dsdᵛ}} (read a₁ k) (read a₂ k)))) →
+      Holdsᶜ env []) →
+    Holdsᶜ env []
+
+  exten a₁ a₂ p with a₁ ≟ a₂
+  ... | true because ofʸ refl = p defᵏ $ holds _ lem
+    where
+    lem : ∀ {x} → does (a₁ ≟ a₁) ∨ x ≡ true
+    lem rewrite ext-lem₁ {a = a₁} = refl
+
+  ... | false because ofⁿ q
+    with (k , r) ← ≢-read q = p k $ holds _ lem
+    where
+    lem : ∀ {x} → x ∨ not (does (read a₁ k ≟ᵛ read a₂ k)) ≡ true
+    lem {x} rewrite ext-lem₂ {a₁ = a₁} {a₂} {k} r = ∨-zeroʳ x
 
 splitˡ : {h : ℕ} → {T : Set} → (f : Trie (suc h) → T) → Trie h → T
 splitˡ f t = f (node (just t) nothing)
@@ -362,20 +348,18 @@ join⁻ : {h : ℕ} → {T : Set} → (T-≈ : T → T → Set) → (f₁ f₂ :
 join⁻ T-≈ f₁ f₂ p n = p $ λ { {tˡ} refl {tʳ} refl → n refl }
 
 join⁺ : {h : ℕ} → {T : Set} → (T-≈ : T → T → Set) → (f₁ f₂ : Trie (suc h) → T) →
-  T-≈ (f₁ (node nothing nothing)) (f₂ (node nothing nothing)) →
   ({t₁ t₂ : Trie h} → t₁ ≡ t₂ → T-≈ (splitˡ f₁ t₁) (splitˡ f₂ t₂)) →
   ({t₁ t₂ : Trie h} → t₁ ≡ t₂ → T-≈ (splitʳ f₁ t₁) (splitʳ f₂ t₂)) →
   ({l₁ l₂ : Trie h} → l₁ ≡ l₂ → {r₁ r₂ : Trie h} → r₁ ≡ r₂ →
     T-≈ (split f₁ l₁ r₁) (split f₂ l₂ r₂)) →
   ({t₁ t₂ : Trie (suc h)} → t₁ ≡ t₂ → T-≈ (f₁ t₁) (f₂ t₂))
 
-join⁺ T-≈ f₁ f₂ p q r s {node nothing   nothing}   refl = p
-join⁺ T-≈ f₁ f₂ p q r s {node (just tˡ) nothing}   refl = q refl
-join⁺ T-≈ f₁ f₂ p q r s {node nothing   (just tʳ)} refl = r refl
-join⁺ T-≈ f₁ f₂ p q r s {node (just tˡ) (just tʳ)} refl = s refl refl
+join⁺ T-≈ f₁ f₂ p q r {node (just tˡ) nothing}   refl = p refl
+join⁺ T-≈ f₁ f₂ p q r {node nothing   (just tʳ)} refl = q refl
+join⁺ T-≈ f₁ f₂ p q r {node (just tˡ) (just tʳ)} refl = r refl refl
 
-Func-≈ = λ {h : ℕ} (dsdᵗ : DSD 0ℓ 0ℓ) (f₁ f₂ : Trie h → Carˣ dsdᵗ) →
-  (∀ {t₁} {t₂} → t₁ ≡ t₂ → _≈ˣ_ dsdᵗ (f₁ t₁) (f₂ t₂))
+Func-≈ = λ {h : ℕ} (dsdᵗ : DSD 0ℓ 0ℓ) (f₁ f₂ : Trie h → DSD.Carrier dsdᵗ) →
+  (∀ {t₁} {t₂} → t₁ ≡ t₂ → DSD._≈_ dsdᵗ (f₁ t₁) (f₂ t₂))
 
 func-≟ : {h : ℕ} → (dsdᵗ : DSD 0ℓ 0ℓ) → Decidable (Func-≈ {h} dsdᵗ)
 
@@ -402,85 +386,12 @@ func-≟ {zero} dsdᵗ f₁ f₂ with bv-func-≟ dsdᵗ (f₁ ∘ leaf) (f₂ �
 ... | false because ofⁿ p = false because ofⁿ λ n → p $ λ { {bv₁} {bv₂} refl → n {leaf bv₁} refl }
 
 func-≟ {suc h} dsdᵗ f₁ f₂
-  with (_≟ˣ_ dsdᵗ) (f₁ (node nothing nothing)) (f₂ (node nothing nothing))
-... | false because ofⁿ p = false because ofⁿ λ n →  p $ n refl
-... | true  because ofʸ p
   with func-≟ dsdᵗ (splitˡ f₁) (splitˡ f₂)
-... | false because ofⁿ q = false because ofⁿ (joinˡ (_≈ˣ_ dsdᵗ) f₁ f₂ q)
-... | true  because ofʸ q
+... | false because ofⁿ p = false because ofⁿ (joinˡ (DSD._≈_ dsdᵗ) f₁ f₂ p)
+... | true  because ofʸ p
   with func-≟ dsdᵗ (splitʳ f₁) (splitʳ f₂)
-... | false because ofⁿ r = false because ofⁿ (joinʳ (_≈ˣ_ dsdᵗ) f₁ f₂ r)
-... | true  because ofʸ r
+... | false because ofⁿ q = false because ofⁿ (joinʳ (DSD._≈_ dsdᵗ) f₁ f₂ q)
+... | true  because ofʸ q
   with func-≟ (build-dsd h dsdᵗ) (split f₁) (split f₂)
-... | false because ofⁿ s = false because ofⁿ (join⁻ (_≈ˣ_ dsdᵗ) f₁ f₂ s)
-... | true  because ofʸ s = true  because ofʸ (join⁺ (_≈ˣ_ dsdᵗ) f₁ f₂ p q r s)
-
-just-inj : {ℓ : Level} → {S : Set ℓ} → {x y : S} → just x ≡ just y → x ≡ y
-just-inj refl = refl
-
-leaf-inj : {x y : Val} → leaf x ≡ leaf y → x ≡ y
-leaf-inj refl = refl
-
-node-≢ˡ : ∀ {h ml₁ ml₂ mr₁ mr₂} → ml₁ ≢ ml₂ → node {h} ml₁ mr₁ ≢ node {h} ml₂ mr₂
-node-≢ˡ p refl = contradiction refl p
-
-node-≢ʳ : ∀ {h ml₁ ml₂ mr₁ mr₂} → mr₁ ≢ mr₂ → node {h} ml₁ mr₁ ≢ node {h} ml₂ mr₂
-node-≢ʳ p refl = contradiction refl p
-
-lookup-≋ : {h : ℕ} → (a₁ a₂ : Maybe (Trie h)) →
-  (∀ k → lookupᵗ k a₁ ≡ lookupᵗ k a₂) ⊎ (∃ λ k → lookupᵗ k a₁ ≢ lookupᵗ k a₂)
-
-lookup-≋        nothing          nothing          = inj₁ λ _ → refl
-lookup-≋ {zero} (just (leaf v₁)) nothing          = inj₂ ([]ᵛ , λ ())
-lookup-≋ {zero} nothing          (just (leaf v₂)) = inj₂ ([]ᵛ , λ ())
-
-lookup-≋ {zero} (just (leaf v₁)) (just (leaf v₂))
-  with v₁ ≟ᵛ v₂
-... | true  because ofʸ refl = inj₁ λ _ → refl
-... | false because ofⁿ p    = inj₂ ([]ᵛ , p ∘ just-inj)
-
-lookup-≋ {suc h} (just (node ml₁ mr₁)) nothing
-  with lookup-≋ ml₁ nothing
-... | inj₂ (k , p) = inj₂ (true ∷ᵛ k , p)
-... | inj₁ p
-  with lookup-≋ mr₁ nothing
-... | inj₂ (k , q) = inj₂ (false ∷ᵛ k , q)
-... | inj₁ q = inj₁ λ { (true ∷ᵛ k) → p k ; (false ∷ᵛ k) → q k }
-
-lookup-≋ {suc h} nothing (just (node ml₂ mr₂))
-  with lookup-≋ nothing ml₂
-... | inj₂ (k , p) = inj₂ (true ∷ᵛ k , p)
-... | inj₁ p
-  with lookup-≋ nothing mr₂
-... | inj₂ (k , q) = inj₂ (false ∷ᵛ k , q)
-... | inj₁ q = inj₁ λ { (true ∷ᵛ k) → p k ; (false ∷ᵛ k) → q k }
-
-lookup-≋ {suc h} (just (node ml₁ mr₁)) (just (node ml₂ mr₂))
-  with lookup-≋ ml₁ ml₂
-... | inj₂ (k , p) = inj₂ (true ∷ᵛ k , p)
-... | inj₁ p
-  with lookup-≋ mr₁ mr₂
-... | inj₂ (k , q) = inj₂ (false ∷ᵛ k , q)
-... | inj₁ q = inj₁ λ { (true ∷ᵛ k) → p k ; (false ∷ᵛ k) → q k }
-
-array-≟ : {h : ℕ} → (a₁ a₂ : Maybe (Trie h)) → Dec (a₁ ≡ a₂)
-array-≟ {zero} nothing          nothing          = true  because ofʸ refl
-array-≟ {zero} nothing          (just (leaf v₂)) = false because ofⁿ λ ()
-array-≟ {zero} (just (leaf v₁)) nothing          = false because ofⁿ λ ()
-
-array-≟ {zero} (just (leaf v₁)) (just (leaf v₂))
-  with v₁ ≟ᵛ v₂
-... | true  because ofʸ refl = true  because ofʸ refl
-... | false because ofⁿ p    = false because ofⁿ (p ∘ leaf-inj ∘ just-inj)
-
-array-≟ {suc h} nothing  nothing  = true  because ofʸ refl
-array-≟ {suc h} nothing  (just _) = false because ofⁿ λ ()
-array-≟ {suc h} (just x) nothing  = false because ofⁿ λ ()
-
-array-≟ {suc h} (just (node ml₁ mr₁)) (just (node ml₂ mr₂))
-  with array-≟ ml₁ ml₂
-... | false because ofⁿ p    = false because ofⁿ (node-≢ˡ p ∘ just-inj)
-... | true  because ofʸ refl
-  with array-≟ mr₁ mr₂
-... | false because ofⁿ q    = false because ofⁿ (node-≢ʳ q ∘ just-inj)
-... | true  because ofʸ refl = true  because ofʸ refl
+... | false because ofⁿ r = false because ofⁿ (join⁻ (DSD._≈_ dsdᵗ) f₁ f₂ r)
+... | true  because ofʸ r = true  because ofʸ (join⁺ (DSD._≈_ dsdᵗ) f₁ f₂ p q r)
