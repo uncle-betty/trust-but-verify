@@ -4,7 +4,7 @@ module Arrays (bitsᵏ bitsᵛ : ℕ) where
 
 open import Data.Bool using (true ; false ; _∨_ ; not)
 open import Data.Bool.Properties using (∨-zeroˡ ; ∨-zeroʳ ; not-¬)
-open import Data.Empty using (⊥)
+open import Data.Empty using (⊥ ; ⊥-elim)
 open import Data.List using ([])
 open import Data.Maybe using (Maybe ; just ; nothing)
 open import Data.Nat using (zero ; suc ; _⊔_)
@@ -13,7 +13,7 @@ open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Unit using (⊤ ; tt)
 open import Data.Vec using () renaming ([] to []ᵛ ; _∷_ to _∷ᵛ_)
 
-open import Function using (_$_ ; _∘_)
+open import Function using (_$_ ; _∘_ ; flip)
 
 open import Level using (Level ; 0ℓ)
 
@@ -23,6 +23,7 @@ open import Relation.Binary.PropositionalEquality
   using (_≡_ ; _≢_ ; refl ; sym ; ≢-sym ; trans ; cong ; subst ; inspect ; [_])
 
 open import Relation.Nullary using (Dec ; _because_ ; does ; ofʸ ; ofⁿ ; ¬_)
+open import Relation.Nullary.Decidable using (False ; fromWitnessFalse ; toWitnessFalse)
 open import Relation.Nullary.Negation using (contradiction)
 
 open import BitVec using (BitVec ; bv-dsd ; bv-func-≟ ; null)
@@ -38,20 +39,28 @@ defᵏ = null {bitsᵏ}
 open DSD dsdᵏ using () renaming (Carrier to Key ; _≟_ to _≟ᵏ_)
 open DSD dsdᵛ using () renaming (Carrier to Val ; _≟_ to _≟ᵛ_)
 
-valid : {S : Set} → (l r : Maybe S) → Set
-valid nothing nothing = ⊥
-valid _       _       = ⊤
+node-✓ : {S : Set} → (l r : Maybe S) → Set
+node-✓ nothing nothing = ⊥
+node-✓ _       _       = ⊤
 
-one-valid : {S : Set} → {l r : Maybe S} → (v₁ v₂ : valid l r) → v₁ ≡ v₂
-one-valid {l = just _}  {just _}  v₁ v₂ = refl
-one-valid {l = just _}  {nothing} v₁ v₂ = refl
-one-valid {l = nothing} {just _}  v₁ v₂ = refl
+one-node-✓ : {S : Set} → {l r : Maybe S} → (✓₁ ✓₂ : node-✓ l r) → ✓₁ ≡ ✓₂
+one-node-✓ {l = just _}  {just _}  ✓₁ ✓₂ = refl
+one-node-✓ {l = just _}  {nothing} ✓₁ ✓₂ = refl
+one-node-✓ {l = nothing} {just _}  ✓₁ ✓₂ = refl
+
+value-✓ : Val → Set
+value-✓ v = False (v ≟ᵛ defᵛ)
+
+one-value-✓ : {v : Val} → (✓₁ ✓₂ : value-✓ v) → ✓₁ ≡ ✓₂
+one-value-✓ {v} ✓₁ ✓₂ with v ≟ᵛ defᵛ
+... | true  because _ = ⊥-elim ✓₁
+... | false because _ = refl
 
 data Trie : ℕ → Set where
-  node : {h : ℕ} → (l r : Maybe (Trie h)) → {valid l r} → Trie (suc h)
-  leaf : Val → Trie 0
+  node : {h : ℕ} → (l r : Maybe (Trie h)) → {node-✓ l r} → Trie (suc h)
+  leaf : (v : Val) → {value-✓ v} → Trie 0
 
--- helper to get |valid l r| for unknown left sub-tries
+-- helper to automatically find |node­✓| for unknown left sub-tries
 node′ : {h : ℕ} → (l : Maybe (Trie h)) → (r : Trie h) → Trie (suc h)
 node′ nothing  r = node nothing  (just r)
 node′ (just l) r = node (just l) (just r)
@@ -59,13 +68,13 @@ node′ (just l) r = node (just l) (just r)
 just-inj : {ℓ : Level} → {S : Set ℓ} → {x y : S} → just x ≡ just y → x ≡ y
 just-inj refl = refl
 
-leaf-inj : {v₁ v₂ : Val} → leaf v₁ ≡ leaf v₂ → v₁ ≡ v₂
+leaf-inj : ∀ {v₁ v₂ ✓₁ ✓₂} → leaf v₁ {✓₁} ≡ leaf v₂ {✓₂} → v₁ ≡ v₂
 leaf-inj refl = refl
 
-node-injˡ : ∀ {h l₁ l₂ r₁ r₂ v₁ v₂} → node {h} l₁ r₁ {v₁} ≡ node {h} l₂ r₂ {v₂} → l₁ ≡ l₂
+node-injˡ : ∀ {h l₁ l₂ r₁ r₂ ✓₁ ✓₂} → node {h} l₁ r₁ {✓₁} ≡ node {h} l₂ r₂ {✓₂} → l₁ ≡ l₂
 node-injˡ refl = refl
 
-node-injʳ : ∀ {h l₁ l₂ r₁ r₂ v₁ v₂} → node {h} l₁ r₁ {v₁} ≡ node {h} l₂ r₂ {v₂} → r₁ ≡ r₂
+node-injʳ : ∀ {h l₁ l₂ r₁ r₂ ✓₁ ✓₂} → node {h} l₁ r₁ {✓₁} ≡ node {h} l₂ r₂ {✓₂} → r₁ ≡ r₂
 node-injʳ refl = refl
 
 -- LFSC: Array
@@ -78,23 +87,26 @@ _≟_ {zero} nothing          nothing          = true  because ofʸ refl
 _≟_ {zero} nothing          (just (leaf v₂)) = false because ofⁿ λ ()
 _≟_ {zero} (just (leaf v₁)) nothing          = false because ofⁿ λ ()
 
-_≟_ {zero} (just (leaf v₁)) (just (leaf v₂))
+_≟_ {zero} (just (leaf v₁ {✓₁})) (just (leaf v₂ {✓₂}))
   with v₁ ≟ᵛ v₂
-... | true  because ofʸ refl = true  because ofʸ refl
+... | true  because ofʸ refl
+  rewrite one-value-✓ ✓₁ ✓₂
+  = true  because ofʸ refl
+
 ... | false because ofⁿ p    = false because ofⁿ (p ∘ leaf-inj ∘ just-inj)
 
 _≟_ {suc h} nothing  nothing  = true  because ofʸ refl
 _≟_ {suc h} nothing  (just _) = false because ofⁿ λ ()
 _≟_ {suc h} (just _) nothing  = false because ofⁿ λ ()
 
-_≟_ {suc h} (just (node l₁ r₁ {v₁})) (just (node l₂ r₂ {v₂}))
+_≟_ {suc h} (just (node l₁ r₁ {✓₁})) (just (node l₂ r₂ {✓₂}))
   with l₁ ≟ l₂
 ... | false because ofⁿ p    = false because ofⁿ (p ∘ node-injˡ ∘ just-inj)
 ... | true  because ofʸ refl
   with r₁ ≟ r₂
 ... | false because ofⁿ q    = false because ofⁿ (q ∘ node-injʳ ∘ just-inj)
 ... | true  because ofʸ refl
-  rewrite one-valid v₁ v₂
+  rewrite one-node-✓ ✓₁ ✓₂
   = true  because ofʸ refl
 
 array-dsd : DSD 0ℓ 0ℓ
@@ -111,104 +123,224 @@ array-dsd = record {
       }
   }
 
-insert : {h : ℕ} → BitVec h → Val → Maybe (Trie h) → Trie h
-insert []ᵛ           v nothing             = leaf v
-insert (true  ∷ᵛ bv) v nothing             = let t = insert bv v nothing in node (just t) nothing
-insert (false ∷ᵛ bv) v nothing             = let t = insert bv v nothing in node nothing (just t)
-insert []ᵛ           v (just (leaf _))     = leaf v
-insert (true  ∷ᵛ bv) v (just (node aˡ aʳ)) = let t = insert bv v aˡ in node (just t) aʳ
-insert (false ∷ᵛ bv) v (just (node aˡ aʳ)) = let t = insert bv v aʳ in node′ aˡ t
-
--- LFSC: write
-write : Array → Key → Val → Array
-write a k v = just $ insert k v a
-
-lookup : {h : ℕ} → BitVec h → Maybe (Trie h) → Maybe Val
-lookup _             nothing             = nothing
-lookup []ᵛ           (just (leaf v))     = just v
-lookup (true  ∷ᵛ bv) (just (node aˡ _))  = lookup bv aˡ
-lookup (false ∷ᵛ bv) (just (node _  aʳ)) = lookup bv aʳ
-
--- LFSC: read
-read : Array → Key → Val
-read a k with lookup k a
-... | nothing = defᵛ
-... | just v  = v
-
-insed : {h : ℕ} → (a : Maybe (Trie h)) → (k : BitVec h) → (v : Val) →
-  lookup k (just (insert k v a)) ≡ just v
-
-insed nothing                   []ᵛ           _ = refl
-insed nothing                   (true  ∷ᵛ bv) v = insed nothing bv v
-insed nothing                   (false ∷ᵛ bv) v = insed nothing bv v
-insed (just (leaf _))           []ᵛ           _ = refl
-insed (just (node aˡ       _))  (true  ∷ᵛ bv) v = insed aˡ bv v
--- extra case split for |node′|
-insed (just (node nothing  aʳ)) (false ∷ᵛ bv) v = insed aʳ bv v
-insed (just (node (just _) aʳ)) (false ∷ᵛ bv) v = insed aʳ bv v
-
-trim-≉ : ∀ {n b} → {bv₁ bv₂ : BitVec n} → (b ∷ᵛ bv₁) ≢ (b ∷ᵛ bv₂) → bv₁ ≢ bv₂
-trim-≉ {b = b} {bv₁} {bv₂} p n = p $ cong (b ∷ᵛ_) n
-
-other : {h : ℕ} → (a : Maybe (Trie h)) → (k₁ k₂ : BitVec h) → (v : Val) → k₁ ≢ k₂ →
-  lookup k₂ (just (insert k₁ v a)) ≡ lookup k₂ a
-
 pattern J x = just x
 pattern N   = nothing
 
-other _                   []ᵛ            []ᵛ            _ k₁≉k₂ = contradiction refl k₁≉k₂
-other N                   (true  ∷ᵛ bv₁) (true  ∷ᵛ bv₂) v k₁≉k₂ = other N  bv₁ bv₂ v (trim-≉ k₁≉k₂)
-other (J (node aˡ    _))  (true  ∷ᵛ bv₁) (true  ∷ᵛ bv₂) v k₁≉k₂ = other aˡ bv₁ bv₂ v (trim-≉ k₁≉k₂)
-other N                   (true  ∷ᵛ _)   (false ∷ᵛ _)   _ _     = refl
-other (J (node _     _))  (true  ∷ᵛ _)   (false ∷ᵛ _)   _ _     = refl
-other N                   (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _     = refl
+insert : {h : ℕ} → BitVec h → (v : Val) → {value-✓ v} → Maybe (Trie h) → Trie h
+insert []ᵛ           v {✓} N                = leaf v {✓}
+insert (true  ∷ᵛ bv) v {✓} N                = let t = insert bv v {✓} N in node (J t) N
+insert (false ∷ᵛ bv) v {✓} N                = let t = insert bv v {✓} N in node N (J t)
+insert []ᵛ           v {✓} (J (leaf _))     = leaf v {✓}
+insert (true  ∷ᵛ bv) v {✓} (J (node aˡ aʳ)) = let t = insert bv v {✓} aˡ in node (J t) aʳ
+insert (false ∷ᵛ bv) v {✓} (J (node aˡ aʳ)) = let t = insert bv v {✓} aʳ in node′ aˡ t
+
+remove : {h : ℕ} → BitVec h → Maybe (Trie h) → Maybe (Trie h)
+remove []ᵛ           (J (leaf _))             = N
+remove (true  ∷ᵛ bv) (J (node aˡ     N))
+  with remove bv aˡ
+... | N     = N
+... | (J a) = J (node (J a) N)
+remove (true  ∷ᵛ bv) (J (node aˡ     (J aʳ))) = J (node′ (remove bv aˡ) aʳ)
+remove (false ∷ᵛ bv) (J (node N      aʳ))
+  with remove bv aʳ
+... | N     = N
+... | (J a) = J (node′ N a)
+remove (false ∷ᵛ bv) (J (node (J aˡ) aʳ))     = J (node (J aˡ) (remove bv aʳ))
+remove _             N                        = N
+
+-- LFSC: write
+write : Array → Key → Val → Array
+write a k v with v ≟ᵛ defᵛ
+... | true  because _     = remove k a
+... | false because ofⁿ p = just $ insert k v {fromWitnessFalse p} a
+
+lookup : {h : ℕ} → BitVec h → Maybe (Trie h) → Val
+lookup _             N                = defᵛ
+lookup []ᵛ           (J (leaf v))     = v
+lookup (true  ∷ᵛ bv) (J (node aˡ _))  = lookup bv aˡ
+lookup (false ∷ᵛ bv) (J (node _  aʳ)) = lookup bv aʳ
+
+-- LFSC: read
+read : Array → Key → Val
+read = flip lookup
+
+insert-≡ : {h : ℕ} → (a : Maybe (Trie h)) → (k : BitVec h) → (v : Val) → (p : v ≢ defᵛ) →
+  lookup k (just (insert k v {fromWitnessFalse p} a)) ≡ v
+
+insert-≡ N                   []ᵛ           _ _ = refl
+insert-≡ N                   (true  ∷ᵛ bv) v p = insert-≡ N bv v p
+insert-≡ N                   (false ∷ᵛ bv) v p = insert-≡ N bv v p
+insert-≡ (J (leaf _))        []ᵛ           _ _ = refl
+insert-≡ (J (node aˡ     _)) (true  ∷ᵛ bv) v p = insert-≡ aˡ bv v p
 -- extra case split for |node′|
-other (J (node N  _))     (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _     = refl
-other (J (node (J _) _))  (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _     = refl
-other N                   (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v k₁≉k₂ = other N  bv₁ bv₂ v (trim-≉ k₁≉k₂)
+insert-≡ (J (node N     aʳ)) (false ∷ᵛ bv) v p = insert-≡ aʳ bv v p
+insert-≡ (J (node (J _) aʳ)) (false ∷ᵛ bv) v p = insert-≡ aʳ bv v p
+
+remove-≡ : {h : ℕ} → (a : Maybe (Trie h)) → (k : BitVec h) → lookup k (remove k a) ≡ defᵛ
+
+remove-≡ N                         []ᵛ           = refl
+remove-≡ N                         (true  ∷ᵛ _)  = refl
+remove-≡ N                         (false ∷ᵛ _)  = refl
+remove-≡ (J (leaf _))              []ᵛ           = refl
+
+remove-≡ (J (node aˡ     N))       (true  ∷ᵛ bv)
+  with remove bv aˡ | inspect (remove bv) aˡ
+... | N     | _      = refl
+... | (J _) | [ eq ] = subst (λ # → lookup bv # ≡ defᵛ) eq (remove-≡ aˡ bv)
+
+remove-≡ (J (node aˡ     (J aʳ)))  (true  ∷ᵛ bv)
+  with remove bv aˡ | inspect (remove bv) aˡ
+... | N     | _      = refl
+... | (J _) | [ eq ] = subst (λ # → lookup bv # ≡ defᵛ) eq (remove-≡ aˡ bv)
+
+remove-≡ (J (node N      aʳ))      (false ∷ᵛ bv)
+  with remove bv aʳ | inspect (remove bv) aʳ
+... | N     | _      = refl
+... | (J _) | [ eq ] = subst (λ # → lookup bv # ≡ defᵛ) eq (remove-≡ aʳ bv)
+
+remove-≡ (J (node (J aˡ) aʳ))      (false ∷ᵛ bv)
+  with remove bv aʳ | inspect (remove bv) aʳ
+... | N     | _      = refl
+... | (J _) | [ eq ] = subst (λ # → lookup bv # ≡ defᵛ) eq (remove-≡ aʳ bv)
+
+write-≡ : (a : Array) → (k : Key) → (v : Val) → read (write a k v) k ≡ v
+write-≡ a k v with v ≟ᵛ defᵛ
+... | true  because ofʸ refl = remove-≡ a k
+... | false because ofⁿ p    = insert-≡ a k v p
+
+trim-≢ : ∀ {n b} → {bv₁ bv₂ : BitVec n} → (b ∷ᵛ bv₁) ≢ (b ∷ᵛ bv₂) → bv₁ ≢ bv₂
+trim-≢ {b = b} {bv₁} {bv₂} p n = p $ cong (b ∷ᵛ_) n
+
+insert-≢ : {h : ℕ} → (a : Maybe (Trie h)) → (k₁ k₂ : BitVec h) → (v : Val) → (p : v ≢ defᵛ) →
+  k₁ ≢ k₂ → lookup k₂ (just (insert k₁ v {fromWitnessFalse p} a)) ≡ lookup k₂ a
+
+insert-≢ _                   []ᵛ            []ᵛ            _ _ k₁≢k₂ = contradiction refl k₁≢k₂
+
+insert-≢ N                   (true  ∷ᵛ bv₁) (true  ∷ᵛ bv₂) v p k₁≢k₂ =
+  insert-≢ N  bv₁ bv₂ v p (trim-≢ k₁≢k₂)
+
+insert-≢ (J (node aˡ    _))  (true  ∷ᵛ bv₁) (true  ∷ᵛ bv₂) v p k₁≢k₂ =
+  insert-≢ aˡ bv₁ bv₂ v p (trim-≢ k₁≢k₂)
+
+insert-≢ N                   (true  ∷ᵛ _)   (false ∷ᵛ _)   _ _ _     = refl
+insert-≢ (J (node _     _))  (true  ∷ᵛ _)   (false ∷ᵛ _)   _ _ _     = refl
+insert-≢ N                   (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _ _     = refl
 -- extra case split for |node′|
-other (J (node N     aʳ)) (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v k₁≉k₂ = other aʳ bv₁ bv₂ v (trim-≉ k₁≉k₂)
-other (J (node (J _) aʳ)) (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v k₁≉k₂ = other aʳ bv₁ bv₂ v (trim-≉ k₁≉k₂)
+insert-≢ (J (node N  _))     (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _ _     = refl
+insert-≢ (J (node (J _) _))  (false ∷ᵛ _)   (true  ∷ᵛ _)   _ _ _     = refl
+
+insert-≢ N                   (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v p k₁≢k₂ =
+  insert-≢ N  bv₁ bv₂ v p (trim-≢ k₁≢k₂)
+
+-- extra case split for |node′|
+insert-≢ (J (node N     aʳ)) (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v p k₁≢k₂ =
+  insert-≢ aʳ bv₁ bv₂ v p (trim-≢ k₁≢k₂)
+
+insert-≢ (J (node (J _) aʳ)) (false ∷ᵛ bv₁) (false ∷ᵛ bv₂) v p k₁≢k₂ =
+  insert-≢ aʳ bv₁ bv₂ v p (trim-≢ k₁≢k₂)
+
+remove-≢ : {h : ℕ} → (a : Maybe (Trie h)) → (k₁ k₂ : BitVec h) → k₁ ≢ k₂ →
+  lookup k₂ (remove k₁ a) ≡ lookup k₂ a
+
+remove-≢ N []ᵛ _ _ = refl
+remove-≢ N (false ∷ᵛ _) _ _ = refl
+remove-≢ N (true  ∷ᵛ _) _ _ = refl
+remove-≢ (J (leaf v)) []ᵛ []ᵛ k₁≢k₂ = contradiction refl k₁≢k₂
+
+-- XXX - a lot of identical with-abstractions below - how to reduce repetition?
+
+remove-≢ (J (node aˡ N)) (true ∷ᵛ k₁) (true ∷ᵛ k₂) k₁≢k₂
+  with remove k₁ aˡ | inspect (remove k₁) aˡ
+... | N     | [ eq ] =
+  subst (λ # → lookup k₂ # ≡ lookup k₂ aˡ) eq (remove-≢ aˡ k₁ k₂ (trim-≢ k₁≢k₂))
+... | (J _) | [ eq ] =
+  subst (λ # → lookup k₂ # ≡ lookup k₂ aˡ) eq (remove-≢ aˡ k₁ k₂ (trim-≢ k₁≢k₂))
+
+remove-≢ (J (node aˡ (J x))) (true ∷ᵛ k₁) (true ∷ᵛ k₂) k₁≢k₂
+  with remove k₁ aˡ | inspect (remove k₁) aˡ
+... | N     | [ eq ] =
+  subst (λ # → lookup k₂ # ≡ lookup k₂ aˡ) eq (remove-≢ aˡ k₁ k₂ (trim-≢ k₁≢k₂))
+... | (J _) | [ eq ] =
+  subst (λ # → lookup k₂ # ≡ lookup k₂ aˡ) eq (remove-≢ aˡ k₁ k₂ (trim-≢ k₁≢k₂))
+
+remove-≢ (J (node aˡ N)) (true ∷ᵛ k₁) (false ∷ᵛ k₂) k₁≢k₂
+  with remove k₁ aˡ
+... | N     = refl
+... | (J _) = refl
+
+remove-≢ (J (node aˡ (J _))) (true ∷ᵛ k₁) (false ∷ᵛ k₂) k₁≢k₂
+  with remove k₁ aˡ
+... | N     = refl
+... | (J _) = refl
+
+remove-≢ (J (node N aˡ)) (false ∷ᵛ k₁) (true ∷ᵛ k₂) k₁≢k₂
+  with remove k₁ aˡ
+... | N     = refl
+... | (J _) = refl
+
+remove-≢ (J (node (J _) aˡ)) (false ∷ᵛ k₁) (true ∷ᵛ k₂) k₁≢k₂
+  with remove k₁ aˡ
+... | N     = refl
+... | (J _) = refl
+
+remove-≢ (J (node N aʳ)) (false ∷ᵛ k₁) (false ∷ᵛ k₂) k₁≢k₂
+  with remove k₁ aʳ | inspect (remove k₁) aʳ
+... | N     | [ eq ] =
+  subst (λ # → lookup k₂ # ≡ lookup k₂ aʳ) eq (remove-≢ aʳ k₁ k₂ (trim-≢ k₁≢k₂))
+... | (J _) | [ eq ] =
+  subst (λ # → lookup k₂ # ≡ lookup k₂ aʳ) eq (remove-≢ aʳ k₁ k₂ (trim-≢ k₁≢k₂))
+
+remove-≢ (J (node (J _) aʳ)) (false ∷ᵛ k₁) (false ∷ᵛ k₂) k₁≢k₂
+  with remove k₁ aʳ | inspect (remove k₁) aʳ
+... | N     | [ eq ] =
+  subst (λ # → lookup k₂ # ≡ lookup k₂ aʳ) eq (remove-≢ aʳ k₁ k₂ (trim-≢ k₁≢k₂))
+... | (J _) | [ eq ] =
+  subst (λ # → lookup k₂ # ≡ lookup k₂ aʳ) eq (remove-≢ aʳ k₁ k₂ (trim-≢ k₁≢k₂))
+
+write-≢ : (a : Array) → (k₁ k₂ : Key) → (v : Val) → k₁ ≢ k₂ → read (write a k₁ v) k₂ ≡ read a k₂
+write-≢ a k₁ k₂ v k₁≢k₂ with v ≟ᵛ defᵛ
+... | true  because ofʸ refl = remove-≢ a k₁ k₂ k₁≢k₂
+... | false because ofⁿ p    = insert-≢ a k₁ k₂ v p k₁≢k₂
 
 -- LFSC: row1
-row-≈ : (a : Array) → (k : Key) → (v : Val) → Holds (equᶠ {{dsdᵛ}} (read (write a k v) k) v)
-row-≈ a k v with read (write a k v) k ≟ᵛ v | inspect (read (write a k v) k ≟ᵛ_) v
+row-≡ : (a : Array) → (k : Key) → (v : Val) → Holds (equᶠ {{dsdᵛ}} (read (write a k v) k) v)
+row-≡ a k v with read (write a k v) k ≟ᵛ v | inspect (read (write a k v) k ≟ᵛ_) v
 ... | true  because _     | [ eq ] = holds _ (cong does eq)
-... | false because ofⁿ p | _      rewrite insed a k v = contradiction refl p
+... | false because ofⁿ p | _      rewrite write-≡ a k v = contradiction refl p
 
 -- LFSC: row
-row-≉ : (a : Array) → (k₁ k₂ : Key) → (v : Val) →
+row-≢ : (a : Array) → (k₁ k₂ : Key) → (v : Val) →
   Holds (notᶠ (equᶠ {{dsdᵏ}} k₁ k₂)) →
   Holds (equᶠ {{dsdᵛ}} (read (write a k₁ v) k₂) (read a k₂))
 
-row-≉ a k₁ k₂ v (holds _ h)
+row-≢ a k₁ k₂ v (holds _ h)
   with read (write a k₁ v) k₂ ≟ᵛ read a k₂ | inspect (read (write a k₁ v) k₂ ≟ᵛ_) (read a k₂)
 
 ... | true  because _     | [ eq ] = holds _ (cong does eq)
 ... | false because ofⁿ p | _      with k₁ ≟ᵏ k₂
-... | false because ofⁿ q rewrite other a k₁ k₂ v q = contradiction refl p
+... | false because ofⁿ q rewrite write-≢ a k₁ k₂ v q = contradiction refl p
 
 -- LFSC: negativerow
-¬-row-≉ : (a : Array) → (k₁ k₂ : Key) → (v : Val) →
+¬-row-≢ : (a : Array) → (k₁ k₂ : Key) → (v : Val) →
   Holds (notᶠ (equᶠ {{dsdᵛ}} (read (write a k₁ v) k₂) (read a k₂))) →
   Holds (equᶠ {{dsdᵏ}} k₁ k₂)
 
-¬-row-≉ a k₁ k₂ v (holds _ h) with does (k₁ ≟ᵏ k₂) | inspect does (k₁ ≟ᵏ k₂)
+¬-row-≢ a k₁ k₂ v (holds _ h) with does (k₁ ≟ᵏ k₂) | inspect does (k₁ ≟ᵏ k₂)
 ... | true  | [ eq ] = holds _ eq
-... | false | [ eq ] with (holds _ h′) ← row-≉ a k₁ k₂ v (holds _ (f⇒not-t eq)) =
+... | false | [ eq ] with (holds _ h′) ← row-≢ a k₁ k₂ v (holds _ (f⇒not-t eq)) =
   contradiction h′ (not-¬ (not-t⇒f h))
 
 ≢-lookup : {h : ℕ} → {a₁ a₂ : Maybe (Trie h)} → a₁ ≢ a₂ → (∃ λ k → lookup k a₁ ≢ lookup k a₂)
-≢-lookup {_}    {N}           {N}           a₁≢a₂ = contradiction refl a₁≢a₂
-≢-lookup {zero} {J (leaf v₁)} {N}           a₁≢a₂ = []ᵛ , λ ()
-≢-lookup {zero} {N}           {J (leaf v₂)} a₁≢a₂ = []ᵛ , λ ()
+≢-lookup {_}    {N}                {N}                a₁≢a₂ = contradiction refl a₁≢a₂
+≢-lookup {zero} {J (leaf v₁ {✓})}  {N}                a₁≢a₂ = []ᵛ , toWitnessFalse ✓
+≢-lookup {zero} {N}                {J (leaf v₂ {✓})}  a₁≢a₂ = []ᵛ , ≢-sym (toWitnessFalse ✓)
 
-≢-lookup {zero} {J (leaf v₁)} {J (leaf v₂)} a₁≢a₂
+≢-lookup {zero} {J (leaf v₁ {✓₁})} {J (leaf v₂ {✓₂})} a₁≢a₂
   with v₁ ≟ᵛ v₂
-... | true  because ofʸ refl = contradiction refl a₁≢a₂
-... | false because ofⁿ p    = []ᵛ , λ n → p $ just-inj n
+... | true  because ofʸ refl rewrite one-value-✓ ✓₁ ✓₂ = contradiction refl a₁≢a₂
+... | false because ofⁿ p                              = []ᵛ , p
 
--- no |node N N| cases because of |valid l r| magic
+-- no |node N N| cases because of |node­✓| magic
 
 ≢-lookup {suc h} {J (node (J l₁) _)} {N} a₁≢a₂ =
   let (k , p) = ≢-lookup {h} {J l₁} {N} λ () in true ∷ᵛ k , p
@@ -236,51 +368,7 @@ row-≉ a k₁ k₂ v (holds _ h)
 ... | J _                    = contradiction refl a₁≢a₂
 
 ≢-read : {a₁ a₂ : Array} → a₁ ≢ a₂ → (∃ λ k → read a₁ k ≢ read a₂ k)
-≢-read {a₁} {a₂} a₁≢a₂
-  with (k , p) ← ≢-lookup a₁≢a₂ = k , lem
-  where
-  lem : read a₁ k ≢ read a₂ k
-  lem with lookup k a₁ | lookup k a₂
-  ... | J v₁ | J v₂ = p ∘ cong J
-  ... | J v₁ | N    = {!!}
-  ... | N    | J v₂ = {!!}
-  ... | N    | N    = contradiction refl p
-
-lookup-≋ : {h : ℕ} → (a₁ a₂ : Maybe (Trie h)) →
-  (∀ k → lookup k a₁ ≡ lookup k a₂) ⊎ (∃ λ k → lookup k a₁ ≢ lookup k a₂)
-
-lookup-≋        nothing          nothing          = inj₁ λ _ → refl
-lookup-≋ {zero} (just (leaf v₁)) nothing          = inj₂ ([]ᵛ , λ ())
-lookup-≋ {zero} nothing          (just (leaf v₂)) = inj₂ ([]ᵛ , λ ())
-
-lookup-≋ {zero} (just (leaf v₁)) (just (leaf v₂))
-  with v₁ ≟ᵛ v₂
-... | true  because ofʸ refl = inj₁ λ _ → refl
-... | false because ofⁿ p    = inj₂ ([]ᵛ , p ∘ just-inj)
-
-lookup-≋ {suc h} (just (node l₁ r₁)) nothing
-  with lookup-≋ l₁ nothing
-... | inj₂ (k , p) = inj₂ (true ∷ᵛ k , p)
-... | inj₁ p
-  with lookup-≋ r₁ nothing
-... | inj₂ (k , q) = inj₂ (false ∷ᵛ k , q)
-... | inj₁ q = inj₁ λ { (true ∷ᵛ k) → p k ; (false ∷ᵛ k) → q k }
-
-lookup-≋ {suc h} nothing (just (node l₂ r₂))
-  with lookup-≋ nothing l₂
-... | inj₂ (k , p) = inj₂ (true ∷ᵛ k , p)
-... | inj₁ p
-  with lookup-≋ nothing r₂
-... | inj₂ (k , q) = inj₂ (false ∷ᵛ k , q)
-... | inj₁ q = inj₁ λ { (true ∷ᵛ k) → p k ; (false ∷ᵛ k) → q k }
-
-lookup-≋ {suc h} (just (node l₁ r₁)) (just (node l₂ r₂))
-  with lookup-≋ l₁ l₂
-... | inj₂ (k , p) = inj₂ (true ∷ᵛ k , p)
-... | inj₁ p
-  with lookup-≋ r₁ r₂
-... | inj₂ (k , q) = inj₂ (false ∷ᵛ k , q)
-... | inj₁ q = inj₁ λ { (true ∷ᵛ k) → p k ; (false ∷ᵛ k) → q k }
+≢-read a₁≢a₂ = ≢-lookup a₁≢a₂
 
 module _ (env : Env) where
   ext-lem₁ : {a : Array} → does (a ≟ a) ≡ true
@@ -372,14 +460,16 @@ build-dsd h dsdᵗ = record {
         _≟_ = func-≟ dsdᵗ
       }
   }
-
   where
   open DSD dsdᵗ using ()
     renaming (Carrier to Carᵗ ; _≈_ to _≈ᵗ_ ; refl to reflᵗ ; sym to symᵗ ; trans to transᵗ)
 
-func-≟ {zero} dsdᵗ f₁ f₂ with bv-func-≟ dsdᵗ (f₁ ∘ leaf) (f₂ ∘ leaf)
+func-≟ {zero} dsdᵗ f₁ f₂ = {!!}
+{-
+with bv-func-≟ dsdᵗ (f₁ ∘ leaf) (f₂ ∘ leaf)
 ... | true  because ofʸ p = true  because ofʸ λ { {leaf _} refl → p refl }
 ... | false because ofⁿ p = false because ofⁿ λ n → p $ λ { {bv₁} {bv₂} refl → n {leaf bv₁} refl }
+-}
 
 func-≟ {suc h} dsdᵗ f₁ f₂
   with func-≟ dsdᵗ (splitˡ f₁) (splitˡ f₂)
