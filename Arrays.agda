@@ -13,7 +13,7 @@ open import Data.Sum using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Unit using (⊤ ; tt)
 open import Data.Vec using () renaming ([] to []ᵛ ; _∷_ to _∷ᵛ_)
 
-open import Function using (_$_ ; _∘_ ; flip)
+open import Function using (_$_ ; _∘_ ; flip ; case_of_)
 
 open import Level using (Level ; 0ℓ)
 
@@ -26,9 +26,11 @@ open import Relation.Nullary using (Dec ; _because_ ; does ; ofʸ ; ofⁿ ; ¬_)
 open import Relation.Nullary.Decidable using (False ; fromWitnessFalse ; toWitnessFalse)
 open import Relation.Nullary.Negation using (contradiction)
 
-open import BitVec using (BitVec ; bv-dsd ; bv-func-≟ ; null)
+open import BitVec using (BitVec ; bv-dsd ; bv-func-≋ ; null)
 open import SAT using (Env ; Holdsᶜ ; not-t⇒f ; f⇒not-t)
 open import SMT using (orᶠ ; notᶠ ; equᶠ ; Holds ; holds)
+
+import Data.Maybe.Relation.Binary.Pointwise as M
 
 dsdᵏ = bv-dsd {bitsᵏ}
 dsdᵛ = bv-dsd {bitsᵛ}
@@ -403,6 +405,83 @@ module _ (env : Env) where
     lem : ∀ {x} → x ∨ not (does (read a₁ k ≟ᵛ read a₂ k)) ≡ true
     lem {x} rewrite ext-lem₂ {a₁ = a₁} {a₂} {k} r = ∨-zeroʳ x
 
+module _ (dsdᵗ : DSD 0ℓ 0ℓ) where
+  open DSD dsdᵗ using () renaming (Carrier to T ; _≈_ to _≈ᵗ_ ; _≟_ to _≟ᵗ_)
+
+  Func-≈ = λ {h : ℕ} (f₁ f₂ : Trie h → DSD.Carrier dsdᵗ) →
+    (∀ {t₁} {t₂} → t₁ ≡ t₂ → DSD._≈_ dsdᵗ (f₁ t₁) (f₂ t₂))
+
+  -- shim for using |bv-func-≟| to decide |leaf| equality (skips |defᵛ|-valued bit vector)
+  shim : (f : Trie 0 → T) → (v : Val) → Maybe T
+  shim f v
+    with v ≟ᵛ defᵛ
+  ... | true  because _     = N
+  ... | false because ofⁿ p = J (f (leaf v {fromWitnessFalse p}))
+
+  shim-N : ∀ {f v} → shim f v ≡ N → v ≡ defᵛ
+  shim-N {f} {v} p
+    with v ≟ᵛ defᵛ
+  ... | true  because ofʸ refl = refl
+  -- XXX - doesn't work when using |_| instead of |ofⁿ _| - why?
+  ... | false because ofⁿ _    = case p of λ ()
+
+  {-
+    XXX - study ill-typed with-abstrations - too much trial and error in the following module
+
+    reminder - failed to fix with-abstraction in:
+
+      shim-J : ∀ {f v t} → leaf-shim f v ≡ J t → (✓ : value-✓ v) → f (leaf v {✓}) ≡ t
+      shim-J {f} {v} {t} p ✓
+        with v ≟ᵛ defᵛ
+      ... | _ = ?
+  -}
+
+  module _ where
+    private
+      leaf-val : (l : Trie 0) → Val
+      leaf-val (leaf v) = v
+
+      leaf-≡ : ∀ l ✓₂ → leaf (leaf-val l) {✓₂} ≡ l
+      leaf-≡ (leaf v₁ {✓₁}) ✓₂ rewrite one-value-✓ ✓₁ ✓₂ = refl
+
+    shim-J : ∀ {f v t} → shim f v ≡ J t → (l : Trie 0) → leaf-val l ≡ v → f l ≡ t
+    shim-J {f} {v} {t} p l refl
+      with v ≟ᵛ defᵛ
+    ... | true  because ofʸ q = case p of λ ()
+    ... | false because ofⁿ q rewrite leaf-≡ l (fromWitnessFalse q) = just-inj p
+
+  shim-eq : ∀ {f₁ f₂ v t₁ t₂} → (✓ : value-✓ v) → shim f₁ v ≡ J t₁ → shim f₂ v ≡ J t₂ →
+    t₁ ≈ᵗ t₂ → f₁ (leaf v {✓}) ≈ᵗ f₂ (leaf v {✓})
+  shim-eq {f₁} {f₂} {v} {t₁} {t₂} ✓ p₁ p₂ p₃
+    rewrite shim-J p₁ (leaf v {✓}) refl
+          | shim-J p₂ (leaf v {✓}) refl
+    = p₃
+
+  shim-lem : (f₁ f₂ : Trie 0 → DSD.Carrier dsdᵗ) → (v : Val) → (✓ : value-✓ v) →
+    M.Pointwise _≈ᵗ_ (shim f₁ v) (shim f₂ v) → f₁ (leaf v {✓}) ≈ᵗ f₂ (leaf v {✓})
+
+  shim-lem f₁ f₂ v ✓ p
+    with shim f₁ v | inspect (shim f₁) v | shim f₂ v | inspect (shim f₂) v
+  shim-lem f₁ f₂ v ✓ M.nothing  | N    | [ eq₁ ] | N    | [ eq₂ ] =
+    contradiction (shim-N eq₁) (toWitnessFalse ✓)
+  shim-lem f₁ f₂ v ✓ ()         | N    | _       | J _  | _
+  shim-lem f₁ f₂ v ✓ ()         | J _  | _       | N    | _
+  shim-lem f₁ f₂ v ✓ (M.just p) | J t₁ | [ eq₁ ] | J t₂ | [ eq₂ ] = shim-eq ✓ eq₁ eq₂ p
+
+  dsdᵐ = M.decSetoid dsdᵗ
+
+  open DSD dsdᵐ using () renaming (_≈_ to _≈ᵐ_ ; _≟_ to _≟ᵐ_)
+
+  leaf-func-≟ : Decidable (Func-≈ {0})
+  leaf-func-≟ f₁ f₂
+    with bv-func-≋ _≈ᵐ_ _≟ᵐ_ {n↑ = 0} (shim f₁) (shim f₂)
+  ... | inj₁ p = true because ofʸ λ { {leaf v {✓}} {leaf v {✓}} refl → shim-lem f₁ f₂ v ✓ (p v) }
+  ... | inj₂ (v , p)
+    with v ≟ᵛ defᵛ
+  ... | true  because ofʸ q = ⊥-elim (p M.nothing)
+  ... | false because ofⁿ q = false because ofⁿ λ n →
+    let l = leaf v {fromWitnessFalse q} in contradiction (n {l} {l} refl) (p ∘ M.just)
+
 splitˡ : {h : ℕ} → {T : Set} → (f : Trie (suc h) → T) → Trie h → T
 splitˡ f t = f (node (just t) nothing)
 
@@ -442,10 +521,7 @@ join⁺ T-≈ f₁ f₂ p q r {node (just tˡ) nothing}   refl = p refl
 join⁺ T-≈ f₁ f₂ p q r {node nothing   (just tʳ)} refl = q refl
 join⁺ T-≈ f₁ f₂ p q r {node (just tˡ) (just tʳ)} refl = r refl refl
 
-Func-≈ = λ {h : ℕ} (dsdᵗ : DSD 0ℓ 0ℓ) (f₁ f₂ : Trie h → DSD.Carrier dsdᵗ) →
-  (∀ {t₁} {t₂} → t₁ ≡ t₂ → DSD._≈_ dsdᵗ (f₁ t₁) (f₂ t₂))
-
-func-≟ : {h : ℕ} → (dsdᵗ : DSD 0ℓ 0ℓ) → Decidable (Func-≈ {h} dsdᵗ)
+func-≟ : {h : ℕ} → (dsdᵗ : DSD 0ℓ 0ℓ) → Decidable (Func-≈ dsdᵗ {h})
 
 build-dsd : ℕ → (dsdᵗ : DSD 0ℓ 0ℓ) → DSD 0ℓ 0ℓ
 build-dsd h dsdᵗ = record {
@@ -464,13 +540,7 @@ build-dsd h dsdᵗ = record {
   open DSD dsdᵗ using ()
     renaming (Carrier to Carᵗ ; _≈_ to _≈ᵗ_ ; refl to reflᵗ ; sym to symᵗ ; trans to transᵗ)
 
-func-≟ {zero} dsdᵗ f₁ f₂ = {!!}
-{-
-with bv-func-≟ dsdᵗ (f₁ ∘ leaf) (f₂ ∘ leaf)
-... | true  because ofʸ p = true  because ofʸ λ { {leaf _} refl → p refl }
-... | false because ofⁿ p = false because ofⁿ λ n → p $ λ { {bv₁} {bv₂} refl → n {leaf bv₁} refl }
--}
-
+func-≟ {zero}  dsdᵗ f₁ f₂ = leaf-func-≟ dsdᵗ f₁ f₂
 func-≟ {suc h} dsdᵗ f₁ f₂
   with func-≟ dsdᵗ (splitˡ f₁) (splitˡ f₂)
 ... | false because ofⁿ p = false because ofⁿ (joinˡ (DSD._≈_ dsdᵗ) f₁ f₂ p)
