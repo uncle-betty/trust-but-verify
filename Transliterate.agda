@@ -107,6 +107,8 @@ notNewLine = ¬? ∘ (_≟-char '\n')
 whiteSpace = λ c → c ≟-char ' ' ⊎-dec c ≟-char '\t' ⊎-dec c ≟-char '\r' ⊎-dec c ≟-char '\n'
 notEndOfToken = ¬? ∘ λ c → c ≟-char ')' ⊎-dec whiteSpace c
 
+-- XXX - convince the termination checker that ctxInput keeps getting shorter
+{-# TERMINATING #-}
 skipToToken : StateEither (Lift 0ℓ ⊤)
 skipToToken = do
   ctx ← get↑
