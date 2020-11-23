@@ -188,7 +188,6 @@ insert-≡ (J (node N     aʳ)) (false ∷ᵛ bv) v p = insert-≡ aʳ bv v p
 insert-≡ (J (node (J _) aʳ)) (false ∷ᵛ bv) v p = insert-≡ aʳ bv v p
 
 remove-≡ : {h : ℕ} → (a : Maybe (Trie h)) → (k : BitVec h) → lookup k (remove k a) ≡ defᵛ
-
 remove-≡ N                         []ᵛ           = refl
 remove-≡ N                         (true  ∷ᵛ _)  = refl
 remove-≡ N                         (false ∷ᵛ _)  = refl
@@ -259,7 +258,6 @@ remove-≢ N (true  ∷ᵛ _) _ _ = refl
 remove-≢ (J (leaf v)) []ᵛ []ᵛ k₁≢k₂ = contradiction refl k₁≢k₂
 
 -- XXX - a lot of identical with-abstractions below - how to reduce repetition?
-
 remove-≢ (J (node aˡ N)) (true ∷ᵛ k₁) (true ∷ᵛ k₂) k₁≢k₂
   with remove k₁ aˡ | inspect (remove k₁) aˡ
 ... | N     | [ eq ] =
@@ -341,6 +339,7 @@ row-≢ a k₁ k₂ v (holds _ h)
 ... | false | [ eq ] with (holds _ h′) ← row-≢ a k₁ k₂ v (holds _ (f⇒not-t eq)) =
   contradiction h′ (not-¬ (not-t⇒f h))
 
+-- no |node N N| cases because of |node-✓| magic
 ≢-lookup : {h : ℕ} → {a₁ a₂ : Maybe (Trie h)} → a₁ ≢ a₂ → (∃ λ k → lookup k a₁ ≢ lookup k a₂)
 ≢-lookup {_}    {N}                {N}                a₁≢a₂ = contradiction refl a₁≢a₂
 ≢-lookup {zero} {J (leaf v₁ {✓})}  {N}                a₁≢a₂ = []ᵛ , toWitnessFalse ✓
@@ -350,8 +349,6 @@ row-≢ a k₁ k₂ v (holds _ h)
   with v₁ ≟ᵛ v₂
 ... | true  because ofʸ refl rewrite one-value-✓ ✓₁ ✓₂ = contradiction refl a₁≢a₂
 ... | false because ofⁿ p                              = []ᵛ , p
-
--- no |node N N| cases because of |node­✓| magic
 
 ≢-lookup {suc h} {J (node (J l₁) _)} {N} a₁≢a₂ =
   let (k , p) = ≢-lookup {h} {J l₁} {N} λ () in true ∷ᵛ k , p
@@ -420,7 +417,7 @@ module _ (dsdᵗ : DSD 0ℓ 0ℓ) where
   Func-≈ = λ {h : ℕ} (f₁ f₂ : Trie h → DSD.Carrier dsdᵗ) →
     (∀ {t₁} {t₂} → t₁ ≡ t₂ → DSD._≈_ dsdᵗ (f₁ t₁) (f₂ t₂))
 
-  -- shim for using |bv-func-≟| to decide |leaf| equality (skips |defᵛ|-valued bit vector)
+  -- shim for leveraging |bv-func-≟| to decide |leaf| equality (skips |defᵛ|-valued bit vector)
   shim : (f : Trie 0 → T) → (v : Val) → Maybe T
   shim f v
     with v ≟ᵛ defᵛ
@@ -436,7 +433,7 @@ module _ (dsdᵗ : DSD 0ℓ 0ℓ) where
 
   -- reminder - failed to fix with-abstraction in:
   --
-  --   shim-J : ∀ {f v t} → leaf-shim f v ≡ J t → (✓ : value-✓ v) → f (leaf v {✓}) ≡ t
+  --   shim-J : ∀ {f v t} → shim f v ≡ J t → (✓ : value-✓ v) → f (leaf v {✓}) ≡ t
   --     shim-J {f} {v} {t} p ✓
   --     with v ≟ᵛ defᵛ
   --   ... | _ = ?
@@ -474,9 +471,7 @@ module _ (dsdᵗ : DSD 0ℓ 0ℓ) where
   shim-lem f₁ f₂ v ✓ ()         | J _  | _       | N    | _
   shim-lem f₁ f₂ v ✓ (M.just p) | J t₁ | [ eq₁ ] | J t₂ | [ eq₂ ] = shim-eq ✓ eq₁ eq₂ p
 
-  dsdᵐ = M.decSetoid dsdᵗ
-
-  open DSD dsdᵐ using () renaming (_≈_ to _≈ᵐ_ ; _≟_ to _≟ᵐ_)
+  open DSD (M.decSetoid dsdᵗ) using () renaming (_≈_ to _≈ᵐ_ ; _≟_ to _≟ᵐ_)
 
   leaf-func-≟ : Decidable (Func-≈ {0})
   leaf-func-≟ f₁ f₂
