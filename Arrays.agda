@@ -32,15 +32,21 @@ open import SMT using (orᶠ ; notᶠ ; equᶠ ; Holds ; holds)
 
 import Data.Maybe.Relation.Binary.Pointwise as M
 
+-- only support arrays with bit vector keys and values at this time
 dsdᵏ = bv-dsd {bitsᵏ}
 dsdᵛ = bv-dsd {bitsᵛ}
 
+-- looking up undefined keys yields default value |defᵛ|
 defᵛ = null {bitsᵛ}
-defᵏ = null {bitsᵏ}
 
 open DSD dsdᵏ using () renaming (Carrier to Key ; _≟_ to _≟ᵏ_)
 open DSD dsdᵛ using () renaming (Carrier to Val ; _≟_ to _≟ᵛ_)
 
+-- it seems handy to make a trie's extensional equality ("lookup equality") and propositional
+-- equality coincide
+--
+-- criterion #1: don't allow adding nothing/nothing |node|s, which would change propositional
+-- equality without changing extensional equality
 node-✓ : {S : Set} → (l r : Maybe S) → Set
 node-✓ nothing nothing = ⊥
 node-✓ _       _       = ⊤
@@ -50,6 +56,8 @@ one-node-✓ {l = just _}  {just _}  ✓₁ ✓₂ = refl
 one-node-✓ {l = just _}  {nothing} ✓₁ ✓₂ = refl
 one-node-✓ {l = nothing} {just _}  ✓₁ ✓₂ = refl
 
+-- criterion #2: don't allow default-valued |leaf|s, which would be extensionally indistinguishable
+-- from absent |leaf|s - also see |write| below
 value-✓ : Val → Set
 value-✓ v = False (v ≟ᵛ defᵛ)
 
@@ -153,6 +161,7 @@ remove _             N                        = N
 -- LFSC: write
 write : Array → Key → Val → Array
 write a k v with v ≟ᵛ defᵛ
+-- setting a key to the default value turns into key removal - also see |value-✓| above
 ... | true  because _     = remove k a
 ... | false because ofⁿ p = just $ insert k v {fromWitnessFalse p} a
 
@@ -394,7 +403,7 @@ module _ (env : Env) where
     Holdsᶜ env []
 
   exten a₁ a₂ p with a₁ ≟ a₂
-  ... | true because ofʸ refl = p defᵏ $ holds _ lem
+  ... | true because ofʸ refl = p null $ holds _ lem
     where
     lem : ∀ {x} → does (a₁ ≟ a₁) ∨ x ≡ true
     lem rewrite ext-lem₁ {a = a₁} = refl
@@ -425,17 +434,14 @@ module _ (dsdᵗ : DSD 0ℓ 0ℓ) where
   -- XXX - doesn't work when using |_| instead of |ofⁿ _| - why?
   ... | false because ofⁿ _    = case p of λ ()
 
-  {-
-    reminder - failed to fix with-abstraction in:
+  -- reminder - failed to fix with-abstraction in:
+  --
+  --   shim-J : ∀ {f v t} → leaf-shim f v ≡ J t → (✓ : value-✓ v) → f (leaf v {✓}) ≡ t
+  --     shim-J {f} {v} {t} p ✓
+  --     with v ≟ᵛ defᵛ
+  --   ... | _ = ?
 
-      shim-J : ∀ {f v t} → leaf-shim f v ≡ J t → (✓ : value-✓ v) → f (leaf v {✓}) ≡ t
-      shim-J {f} {v} {t} p ✓
-        with v ≟ᵛ defᵛ
-      ... | _ = ?
-
-    XXX - study ill-typed with-abstrations - too much trial and error in the following module
-  -}
-
+  -- XXX - study ill-typed with-abstrations - too much trial and error in the following module
   module _ where
     private
       leaf-val : (l : Trie 0) → Val
