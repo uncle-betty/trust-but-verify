@@ -426,14 +426,14 @@ module _ (dsdᵗ : DSD 0ℓ 0ℓ) where
   ... | false because ofⁿ _    = case p of λ ()
 
   {-
-    XXX - study ill-typed with-abstrations - too much trial and error in the following module
-
     reminder - failed to fix with-abstraction in:
 
       shim-J : ∀ {f v t} → leaf-shim f v ≡ J t → (✓ : value-✓ v) → f (leaf v {✓}) ≡ t
       shim-J {f} {v} {t} p ✓
         with v ≟ᵛ defᵛ
       ... | _ = ?
+
+    XXX - study ill-typed with-abstrations - too much trial and error in the following module
   -}
 
   module _ where
@@ -482,44 +482,42 @@ module _ (dsdᵗ : DSD 0ℓ 0ℓ) where
   ... | false because ofⁿ q = false because ofⁿ λ n →
     let l = leaf v {fromWitnessFalse q} in contradiction (n {l} {l} refl) (p ∘ M.just)
 
-splitˡ : {h : ℕ} → {T : Set} → (f : Trie (suc h) → T) → Trie h → T
-splitˡ f t = f (node (just t) nothing)
+  splitˡ : {h : ℕ} → (f : Trie (suc h) → T) → Trie h → T
+  splitˡ f t = f (node (just t) nothing)
 
-joinˡ : {h : ℕ} → {T : Set} → (T-≈ : T → T → Set) → (f₁ f₂ : Trie (suc h) → T) →
-  ¬ ({t₁ t₂ : Trie h} → t₁ ≡ t₂ → T-≈ (splitˡ f₁ t₁) (splitˡ f₂ t₂)) →
-  ¬ ({t₁ t₂ : Trie (suc h)} → t₁ ≡ t₂ → T-≈ (f₁ t₁) (f₂ t₂))
+  joinˡ : {h : ℕ} → (f₁ f₂ : Trie (suc h) → T) →
+    ¬ ({t₁ t₂ : Trie h} → t₁ ≡ t₂ → splitˡ f₁ t₁ ≈ᵗ splitˡ f₂ t₂) →
+    ¬ ({t₁ t₂ : Trie (suc h)} → t₁ ≡ t₂ → f₁ t₁ ≈ᵗ f₂ t₂)
 
-joinˡ T-≈ f₁ f₂ p n = p $ λ { refl → n refl }
+  joinˡ f₁ f₂ p n = p $ λ { refl → n refl }
 
-splitʳ : {h : ℕ} → {T : Set} → (f : Trie (suc h) → T) → Trie h → T
-splitʳ f t = f (node nothing (just t))
+  splitʳ : {h : ℕ} → (f : Trie (suc h) → T) → Trie h → T
+  splitʳ f t = f (node nothing (just t))
 
-joinʳ : {h : ℕ} → {T : Set} → (T-≈ : T → T → Set) → (f₁ f₂ : Trie (suc h) → T) →
-  ¬ ({t₁ t₂ : Trie h} → t₁ ≡ t₂ → T-≈ (splitʳ f₁ t₁) (splitʳ f₂ t₂)) →
-  ¬ ({t₁ t₂ : Trie (suc h)} → t₁ ≡ t₂ → T-≈ (f₁ t₁) (f₂ t₂))
+  joinʳ : {h : ℕ} → (f₁ f₂ : Trie (suc h) → T) →
+    ¬ ({t₁ t₂ : Trie h} → t₁ ≡ t₂ → splitʳ f₁ t₁ ≈ᵗ splitʳ f₂ t₂) →
+    ¬ ({t₁ t₂ : Trie (suc h)} → t₁ ≡ t₂ → f₁ t₁ ≈ᵗ f₂ t₂)
 
-joinʳ T-≈ f₁ f₂ p n = p $ λ { refl → n refl }
+  joinʳ f₁ f₂ p n = p $ λ { refl → n refl }
 
-split : {h : ℕ} → {T : Set} → (f : Trie (suc h) → T) → Trie h → Trie h → T
-split f tˡ tʳ = f (node (just tˡ) (just tʳ))
+  split : {h : ℕ} → (f : Trie (suc h) → T) → Trie h → Trie h → T
+  split f tˡ tʳ = f (node (just tˡ) (just tʳ))
 
-join⁻ : {h : ℕ} → {T : Set} → (T-≈ : T → T → Set) → (f₁ f₂ : Trie (suc h) → T) →
-  ¬ ({l₁ l₂ : Trie h} → l₁ ≡ l₂ → {r₁ r₂ : Trie h} → r₁ ≡ r₂ →
-    T-≈ (split f₁ l₁ r₁) (split f₂ l₂ r₂)) →
-  ¬ ({t₁ t₂ : Trie (suc h)} → t₁ ≡ t₂ → T-≈ (f₁ t₁) (f₂ t₂))
+  join⁻ : {h : ℕ} → (f₁ f₂ : Trie (suc h) → T) →
+    ¬ ({l₁ l₂ : Trie h} → l₁ ≡ l₂ → {r₁ r₂ : Trie h} → r₁ ≡ r₂ → split f₁ l₁ r₁ ≈ᵗ split f₂ l₂ r₂) →
+    ¬ ({t₁ t₂ : Trie (suc h)} → t₁ ≡ t₂ → f₁ t₁ ≈ᵗ f₂ t₂)
 
-join⁻ T-≈ f₁ f₂ p n = p $ λ { {tˡ} refl {tʳ} refl → n refl }
+  join⁻ f₁ f₂ p n = p $ λ { {tˡ} refl {tʳ} refl → n refl }
 
-join⁺ : {h : ℕ} → {T : Set} → (T-≈ : T → T → Set) → (f₁ f₂ : Trie (suc h) → T) →
-  ({t₁ t₂ : Trie h} → t₁ ≡ t₂ → T-≈ (splitˡ f₁ t₁) (splitˡ f₂ t₂)) →
-  ({t₁ t₂ : Trie h} → t₁ ≡ t₂ → T-≈ (splitʳ f₁ t₁) (splitʳ f₂ t₂)) →
-  ({l₁ l₂ : Trie h} → l₁ ≡ l₂ → {r₁ r₂ : Trie h} → r₁ ≡ r₂ →
-    T-≈ (split f₁ l₁ r₁) (split f₂ l₂ r₂)) →
-  ({t₁ t₂ : Trie (suc h)} → t₁ ≡ t₂ → T-≈ (f₁ t₁) (f₂ t₂))
+  join⁺ : {h : ℕ} → (f₁ f₂ : Trie (suc h) → T) →
+    ({t₁ t₂ : Trie h} → t₁ ≡ t₂ → splitˡ f₁ t₁ ≈ᵗ splitˡ f₂ t₂) →
+    ({t₁ t₂ : Trie h} → t₁ ≡ t₂ → splitʳ f₁ t₁ ≈ᵗ splitʳ f₂ t₂) →
+    ({l₁ l₂ : Trie h} → l₁ ≡ l₂ → {r₁ r₂ : Trie h} → r₁ ≡ r₂ → split f₁ l₁ r₁ ≈ᵗ split f₂ l₂ r₂) →
+    ({t₁ t₂ : Trie (suc h)} → t₁ ≡ t₂ → f₁ t₁ ≈ᵗ f₂ t₂)
 
-join⁺ T-≈ f₁ f₂ p q r {node (just tˡ) nothing}   refl = p refl
-join⁺ T-≈ f₁ f₂ p q r {node nothing   (just tʳ)} refl = q refl
-join⁺ T-≈ f₁ f₂ p q r {node (just tˡ) (just tʳ)} refl = r refl refl
+  join⁺ f₁ f₂ p q r {node (just tˡ) nothing}   refl = p refl
+  join⁺ f₁ f₂ p q r {node nothing   (just tʳ)} refl = q refl
+  join⁺ f₁ f₂ p q r {node (just tˡ) (just tʳ)} refl = r refl refl
 
 func-≟ : {h : ℕ} → (dsdᵗ : DSD 0ℓ 0ℓ) → Decidable (Func-≈ dsdᵗ {h})
 
@@ -542,12 +540,12 @@ build-dsd h dsdᵗ = record {
 
 func-≟ {zero}  dsdᵗ f₁ f₂ = leaf-func-≟ dsdᵗ f₁ f₂
 func-≟ {suc h} dsdᵗ f₁ f₂
-  with func-≟ dsdᵗ (splitˡ f₁) (splitˡ f₂)
-... | false because ofⁿ p = false because ofⁿ (joinˡ (DSD._≈_ dsdᵗ) f₁ f₂ p)
+  with func-≟ dsdᵗ (splitˡ dsdᵗ f₁) (splitˡ dsdᵗ f₂)
+... | false because ofⁿ p = false because ofⁿ (joinˡ dsdᵗ f₁ f₂ p)
 ... | true  because ofʸ p
-  with func-≟ dsdᵗ (splitʳ f₁) (splitʳ f₂)
-... | false because ofⁿ q = false because ofⁿ (joinʳ (DSD._≈_ dsdᵗ) f₁ f₂ q)
+  with func-≟ dsdᵗ (splitʳ dsdᵗ f₁) (splitʳ dsdᵗ f₂)
+... | false because ofⁿ q = false because ofⁿ (joinʳ dsdᵗ f₁ f₂ q)
 ... | true  because ofʸ q
-  with func-≟ (build-dsd h dsdᵗ) (split f₁) (split f₂)
-... | false because ofⁿ r = false because ofⁿ (join⁻ (DSD._≈_ dsdᵗ) f₁ f₂ r)
-... | true  because ofʸ r = true  because ofʸ (join⁺ (DSD._≈_ dsdᵗ) f₁ f₂ p q r)
+  with func-≟ (build-dsd h dsdᵗ) (split dsdᵗ f₁) (split dsdᵗ f₂)
+... | false because ofⁿ r = false because ofⁿ (join⁻ dsdᵗ f₁ f₂ r)
+... | true  because ofʸ r = true  because ofʸ (join⁺ dsdᵗ f₁ f₂ p q r)
