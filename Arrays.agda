@@ -70,7 +70,7 @@ data Trie : ℕ → Set where
   node : {h : ℕ} → (l r : Maybe (Trie h)) → {node-✓ l r} → Trie (suc h)
   leaf : (v : Val) → {value-✓ v} → Trie 0
 
--- helper to automatically find |node­✓| for unknown left sub-tries
+-- helper to automatically find |node-✓| for unknown left sub-tries
 node′ : {h : ℕ} → (l : Maybe (Trie h)) → (r : Trie h) → Trie (suc h)
 node′ nothing  r = node nothing  (just r)
 node′ (just l) r = node (just l) (just r)
