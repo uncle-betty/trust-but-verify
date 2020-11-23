@@ -414,8 +414,7 @@ module _ (env : Env) where
 module _ (dsdᵗ : DSD 0ℓ 0ℓ) where
   open DSD dsdᵗ using () renaming (Carrier to T ; _≈_ to _≈ᵗ_ ; _≟_ to _≟ᵗ_)
 
-  Func-≈ = λ {h : ℕ} (f₁ f₂ : Trie h → DSD.Carrier dsdᵗ) →
-    (∀ {t₁} {t₂} → t₁ ≡ t₂ → DSD._≈_ dsdᵗ (f₁ t₁) (f₂ t₂))
+  Func-≈ = λ {h : ℕ} (f₁ f₂ : Trie h → T) → (∀ {t₁} {t₂} → t₁ ≡ t₂ → f₁ t₁ ≈ᵗ f₂ t₂)
 
   -- shim for leveraging |bv-func-≟| to decide |leaf| equality (skips |defᵛ|-valued bit vector)
   shim : (f : Trie 0 → T) → (v : Val) → Maybe T
@@ -434,11 +433,11 @@ module _ (dsdᵗ : DSD 0ℓ 0ℓ) where
   -- reminder - failed to fix with-abstraction in:
   --
   --   shim-J : ∀ {f v t} → shim f v ≡ J t → (✓ : value-✓ v) → f (leaf v {✓}) ≡ t
-  --     shim-J {f} {v} {t} p ✓
+  --   shim-J {f} {v} {t} p ✓
   --     with v ≟ᵛ defᵛ
   --   ... | _ = ?
 
-  -- XXX - study ill-typed with-abstrations - too much trial and error in the following module
+  -- XXX - study ill-typed with-abstractions - too much trial and error went into this module
   module _ where
     private
       leaf-val : (l : Trie 0) → Val
@@ -550,3 +549,19 @@ func-≟ {suc h} dsdᵗ f₁ f₂
   with func-≟ (build-dsd h dsdᵗ) (split dsdᵗ f₁) (split dsdᵗ f₂)
 ... | false because ofⁿ r = false because ofⁿ (join⁻ dsdᵗ f₁ f₂ r)
 ... | true  because ofʸ r = true  because ofʸ (join⁺ dsdᵗ f₁ f₂ p q r)
+
+module _ (dsdᵗ : DSD 0ℓ 0ℓ) where
+  open DSD dsdᵗ using () renaming (Carrier to T ; _≈_ to _≈ᵗ_ ; _≟_ to _≟ᵗ_)
+
+  array-func-≟ : (f₁ f₂ : Array → T) → Dec ({a₁ a₂ : Array} → a₁ ≡ a₂ → f₁ a₁ ≈ᵗ f₂ a₂)
+  array-func-≟ f₁ f₂
+    with f₁ N ≟ᵗ f₂ N
+  ... | false because ofⁿ p = false because ofⁿ λ n → contradiction (n {N} {N} refl) p
+  ... | true  because ofʸ p
+    with func-≟ dsdᵗ (f₁ ∘ J) (f₂ ∘ J)
+  ... | false because ofⁿ q = false because ofⁿ λ n →
+    contradiction (λ {t₁} {t₂} r → n {J t₁} {J t₂} (cong J r)) q
+  ... | true  because ofʸ q = true because ofʸ λ {
+      {N}   {N}   refl → p ;
+      {J t} {J t} refl → q {t} {t} refl
+    }
