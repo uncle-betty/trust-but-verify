@@ -1,3 +1,8 @@
+*NOTE - I've abandoned this little experiment and it probably won't work
+with more recent versions of Agda and/or the standard library. Also, please be
+aware that CVC5 will come with a completely reworked proof infrastructure - I
+don't know, how useful this repository will be going forward.*
+
 **Доверяй, но проверяй (trust, but verify)**
 
 CVC4 is able to produce proofs for `unsat` results. The underlying proof rules
